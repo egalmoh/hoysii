@@ -28,10 +28,13 @@ yarn-error.*
 
 # macOS
 .DS_Store
+._*
 *.pem
 
 # local env files
+.env
 .env*.local
+.dev.vars
 
 # typescript
 *.tsbuildinfo
@@ -39,3 +42,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+
+
+.cursorrules

@@ -1,0 +1,8 @@
+BETTER_AUTH_SECRET=replace-with-a-32-character-minimum-secret
+BETTER_AUTH_URL=http://127.0.0.1:8787
+TRUSTED_ORIGINS=http://localhost:3000,hoysii://,exp://**
+ADMIN_EMAIL=admin@example.com
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+APPLE_CLIENT_ID=
+APPLE_CLIENT_SECRET=

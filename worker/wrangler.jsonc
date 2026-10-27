@@ -1,0 +1,20 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "hoysii-api",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-27",
+  "compatibility_flags": ["nodejs_compat"],
+  "placement": {
+    "mode": "smart"
+  },
+  "vars": {
+    "BETTER_AUTH_URL": "https://api.hoysii.com",
+    "TRUSTED_ORIGINS": "https://admin.hoysii.com,https://www.hoysii.com,hoysii://"
+  }
+  ,
+  "send_email": [{ "name": "SEND_EMAIL" }]
+  // Before deployment, add bindings for:
+  // - HYPERDRIVE: PlanetScale Postgres connection
+  // - HOTEL_MEDIA: private R2 bucket for hotel images
+  // - SEND_EMAIL: Cloudflare Email Service binding
+}
