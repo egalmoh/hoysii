@@ -1,8 +1,13 @@
 BETTER_AUTH_SECRET=replace-with-a-32-character-minimum-secret
-BETTER_AUTH_URL=http://127.0.0.1:8787
-TRUSTED_ORIGINS=http://localhost:3000,hoysii://,exp://**
+BETTER_AUTH_URL=http://localhost:8787
+TRUSTED_ORIGINS=http://localhost:3000,http://localhost:8081,hoysii://,exp://**
 ADMIN_EMAIL=admin@example.com
+ADMIN_AUTH_SECRET=replace-with-a-different-random-secret-at-least-32-characters
+ADMIN_PANEL_URL=http://localhost:3000
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 APPLE_CLIENT_ID=
-APPLE_CLIENT_SECRET=
+APPLE_TEAM_ID=
+APPLE_KEY_ID=
+APPLE_PRIVATE_KEY=
+APPLE_APP_BUNDLE_IDENTIFIER=com.anonymous.hoysii

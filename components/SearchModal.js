@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Image, Pressable, StyleSheet, ScrollView } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -10,6 +10,7 @@ import Animated, {
 import { Feather } from '@expo/vector-icons';
 import { Calendar } from 'react-native-calendars';
 import { LinearGradient } from 'expo-linear-gradient';
+import { getUnavailableDates } from '../lib/api';
 
 const POPULAR_PLACES = [
   {
@@ -38,6 +39,7 @@ export default function SearchModal({
   onClose,
   onNext,
   searchData,
+  allowEmptyLocation = false,
   onUpdateSearchData,
   onCompleteSearch,
   headerHeight,
@@ -49,10 +51,64 @@ export default function SearchModal({
   const [adults, setAdults] = useState(1);
   const [children, setChildren] = useState(0);
   const [markedDates, setMarkedDates] = useState({});
+  const [calendarMonth, setCalendarMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [unavailableByMonth, setUnavailableByMonth] = useState({});
+  const [dateError, setDateError] = useState('');
+  const wasVisible = useRef(false);
+
+  useLayoutEffect(() => {
+    if (visible && !wasVisible.current) {
+      const location = searchData?.location || null;
+      const checkIn = searchData?.dates?.checkIn || null;
+      const checkOut = searchData?.dates?.checkOut || null;
+      setSelectedPlace(location);
+      setSearchText(location ? `${location.name}${location.region ? `, ${location.region}` : ''}` : '');
+      setSelectedDates({ checkIn, checkOut });
+      setMarkedDates(checkIn && checkOut ? Object.fromEntries(getDateRange(checkIn, checkOut).map((date, index, dates) => [date, {
+        startingDay: index === 0,
+        endingDay: index === dates.length - 1,
+        color: index === 0 || index === dates.length - 1 ? '#489CFC' : '#C5E0FE',
+        textColor: index === 0 || index === dates.length - 1 ? '#FFFFFF' : '#111827',
+      }])) : checkIn ? { [checkIn]: { startingDay: true, endingDay: true, color: '#489CFC', textColor: '#FFFFFF' } } : {});
+      setAdults(searchData?.guests?.adults || 1);
+      setChildren(searchData?.guests?.children || 0);
+      setCalendarMonth(checkIn ? checkIn.slice(0, 7) : new Date().toISOString().slice(0, 7));
+      setUnavailableByMonth({});
+      setDateError('');
+    }
+    wasVisible.current = visible;
+  }, [visible, searchData]);
+  const availabilityCity = selectedPlace?.name || (searchText ? searchText.split(',')[0].trim() : searchData?.location?.name || '');
+  const availabilityKey = `${availabilityCity.toLowerCase()}:${adults}:${calendarMonth}`;
+  const unavailableForCity = new Set(Object.entries(unavailableByMonth)
+    .filter(([key]) => key.startsWith(`${availabilityCity.toLowerCase()}:${adults}:`))
+    .flatMap(([, dates]) => dates));
+  const checkoutBoundary = selectedDates.checkIn && !selectedDates.checkOut
+    ? [...unavailableForCity].filter((date) => date > selectedDates.checkIn).sort()[0]
+    : null;
+  const calendarMarks = { ...markedDates };
+  for (const date of unavailableForCity) calendarMarks[date] = { disabled: true, disableTouchEvent: true };
+  if (checkoutBoundary) calendarMarks[checkoutBoundary] = { textColor: '#6B7280' };
+
+  useEffect(() => {
+    if (!visible || currentStep !== 'dates' || unavailableByMonth[availabilityKey]) return;
+    const [year, month] = calendarMonth.split('-').map(Number);
+    const from = `${calendarMonth}-01`;
+    const to = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+    let active = true;
+    getUnavailableDates({ city: availabilityCity, from, to, adults }).then((dates) => {
+      if (active) setUnavailableByMonth((current) => ({ ...current, [availabilityKey]: dates }));
+    }).catch(() => {
+      if (active) setUnavailableByMonth((current) => ({ ...current, [availabilityKey]: [] }));
+    });
+    return () => { active = false; };
+  }, [visible, currentStep, availabilityKey]);
 
   // Handle date selection for range picking
   const handleDayPress = (day) => {
     const dateString = day.dateString;
+    if (unavailableForCity.has(dateString) && dateString !== checkoutBoundary) return;
+    setDateError('');
     
     if (!selectedDates.checkIn || (selectedDates.checkIn && selectedDates.checkOut)) {
       // Start new selection
@@ -66,6 +122,10 @@ export default function SearchModal({
         },
       });
     } else if (dateString > selectedDates.checkIn) {
+      if (getDateRange(selectedDates.checkIn, dateString).slice(0, -1).some((date) => unavailableForCity.has(date))) {
+        setDateError('This stay includes an unavailable night. Choose other dates.');
+        return;
+      }
       // Set checkout date and mark range
       setSelectedDates({ ...selectedDates, checkOut: dateString });
       
@@ -130,35 +190,40 @@ export default function SearchModal({
     });
   };
 
+  const completeSearch = (data) => {
+    onUpdateSearchData(data);
+    onCompleteSearch?.(data);
+    onNext('search');
+  };
+
   const handleNext = () => {
+    const manualLocation = searchText.trim()
+      ? { name: searchText.split(',')[0].trim(), region: searchText.split(',').slice(1).join(',').trim() }
+      : null;
     if (currentStep === 'location') {
-      if (selectedPlace || searchText) {
+      if (selectedPlace || manualLocation || allowEmptyLocation) {
         onUpdateSearchData({
-          location: selectedPlace || { name: searchText, region: '' },
+          location: selectedPlace || manualLocation,
         });
         onNext('dates');
       }
     } else if (currentStep === 'dates') {
+      if (selectedDates.checkIn && !selectedDates.checkOut) return;
       onUpdateSearchData({ dates: selectedDates });
       onNext('people');
     } else if (currentStep === 'people') {
       const finalData = {
-        location: selectedPlace || searchData?.location || (searchText
-          ? { name: searchText, region: '' }
-          : null),
+        location: selectedPlace || manualLocation,
         dates: selectedDates.checkIn || selectedDates.checkOut
           ? selectedDates
           : searchData?.dates || { checkIn: null, checkOut: null },
         guests: { adults, children },
       };
 
-      onUpdateSearchData(finalData);
-
-      if (onCompleteSearch) {
-        onCompleteSearch(finalData);
-      }
-
-      onNext('search');
+      opacity.value = withTiming(0, { duration: 180 });
+      translateY.value = withTiming(-20, { duration: 200 }, (finished) => {
+        if (finished) runOnJS(completeSearch)(finalData);
+      });
     }
   };
 
@@ -189,7 +254,7 @@ export default function SearchModal({
         <Feather name="search" size={20} color="#6B7280" style={{ marginRight: 12 }} />
         <TextInput
           value={searchText}
-          onChangeText={setSearchText}
+          onChangeText={(text) => { setSearchText(text); setSelectedPlace(null); }}
           placeholder="Garowe, Puntland"
           placeholderTextColor="#6B7280"
           style={styles.searchInput}
@@ -234,8 +299,10 @@ export default function SearchModal({
       <View style={styles.calendarContainer}>
         <Calendar
           onDayPress={handleDayPress}
+          onMonthChange={({ year, month }) => setCalendarMonth(`${year}-${String(month).padStart(2, '0')}`)}
+          current={`${calendarMonth}-01`}
           markingType="period"
-          markedDates={markedDates}
+          markedDates={calendarMarks}
           minDate={new Date().toISOString().split('T')[0]}
           theme={{
             backgroundColor: 'transparent',
@@ -263,6 +330,7 @@ export default function SearchModal({
           )}
         />
       </View>
+      {dateError ? <Text style={{ color: '#B45309', fontSize: 12 }}>{dateError}</Text> : null}
     </View>
   );
 
@@ -374,7 +442,7 @@ export default function SearchModal({
                 <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity onPress={handleNext} style={styles.nextButton}>
+              <TouchableOpacity onPress={handleNext} disabled={currentStep === 'dates' && !!selectedDates.checkIn && !selectedDates.checkOut} style={[styles.nextButton, currentStep === 'dates' && !!selectedDates.checkIn && !selectedDates.checkOut && { opacity: 0.5 }]}>
                 <Text style={styles.nextText}>{getButtonText()}</Text>
               </TouchableOpacity>
             </View>
@@ -388,6 +456,7 @@ export default function SearchModal({
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
+    zIndex: 20,
     top: 0,
     left: 0,
     right: 0,

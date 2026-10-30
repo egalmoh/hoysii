@@ -2,10 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Image } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useSignIn, useSignUp, useAuth, useSSO, useUser } from '@clerk/clerk-expo';
-import * as WebBrowser from 'expo-web-browser';
-import * as AuthSession from 'expo-auth-session';
-import { syncUser } from '../../lib/supabase';
+import { useAuth, useUser, authClient } from '../../lib/auth';
+import { syncUser } from '../../lib/api';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -16,25 +14,17 @@ import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-g
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-// Warm up the browser for OAuth
-WebBrowser.maybeCompleteAuthSession();
-
 const DISMISS_THRESHOLD = 40;
 
 export default function LoginScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
-  const { isSignedIn, isLoaded, user, getToken } = useAuth();
-  const { user: clerkUser } = useUser();
+  const { isSignedIn, isLoaded } = useAuth();
+  const { user: authUser } = useUser();
   
-  // Clerk hooks
-  const { signIn, setActive: setSignInActive, isLoaded: isSignInLoaded } = useSignIn();
-  const { signUp, setActive: setSignUpActive, isLoaded: isSignUpLoaded } = useSignUp();
-  
-  // SSO hooks for OAuth
-  const { startSSOFlow: startGoogleSSO } = useSSO();
-  const { startSSOFlow: startAppleSSO } = useSSO();
+  const isSignInLoaded = isLoaded;
+  const isSignUpLoaded = isLoaded;
   
   // UI State
   const [mode, setMode] = useState('signin'); // 'signin' or 'signup'
@@ -68,10 +58,10 @@ export default function LoginScreen() {
 
   // If user is already signed in, navigate away
   useEffect(() => {
-    if (isSignedIn && clerkUser) {
+    if (isSignedIn && authUser) {
       handleSuccessfulAuth();
     }
-  }, [isSignedIn, clerkUser]);
+  }, [isSignedIn, authUser?.id]);
 
   const close = () => {
     router.back();
@@ -79,22 +69,17 @@ export default function LoginScreen() {
 
   const handleSuccessfulAuth = useCallback(async () => {
       
-      // Sync user to Supabase
-      if (clerkUser) {
-        const email = clerkUser.primaryEmailAddress?.emailAddress;
-        const fullName = clerkUser.fullName;
-        const phone = clerkUser.primaryPhoneNumber?.phoneNumber;
+      if (authUser) {
+        const email = authUser.primaryEmailAddress?.emailAddress;
+        const fullName = authUser.fullName;
+        const phone = authUser.primaryPhoneNumber?.phoneNumber;
         
         try {
-          // Get the Supabase token from Clerk
-          const token = await getToken({ template: 'supabase' });
-          
           await syncUser({
-            clerk_id: clerkUser.id,
             email,
             full_name: fullName,
             phone_number: phone
-          }, token);
+          });
         } catch (err) {
           console.error('Sync error in handleSuccessfulAuth:', err);
         }
@@ -118,7 +103,7 @@ export default function LoginScreen() {
           console.error('Error retrieving OAuth params:', err);
         }
 
-        // Small delay to allow Clerk auth state to fully propagate
+        // Allow the auth session to update before navigating.
         setTimeout(() => {
           // If there's a redirect path (e.g., booking modal), just go back to close this modal
           // The booking screen is still in the navigation stack and will detect the auth state change
@@ -156,9 +141,9 @@ export default function LoginScreen() {
           }
         }, 300); // 300ms delay for auth state to settle
       } else {
-        console.error('handleSuccessfulAuth: clerkUser is missing!');
+        console.error('handleSuccessfulAuth: authUser is missing!');
       }
-  }, [redirectTo, router, params, clerkUser, isSignedIn, getToken]);
+  }, [redirectTo, router, params, authUser, isSignedIn]);
 
   const panGesture = Gesture.Pan()
     .onUpdate((event) => {
@@ -203,30 +188,11 @@ export default function LoginScreen() {
         }
       }
 
-      // Create a proper redirect URL that points to the app root
-      // This prevents "unmatched route" errors after OAuth
-      // Use (modals)/login to ensure we return to this screen to handle the auth state
-      const redirectUrl = AuthSession.makeRedirectUri({
-        path: '(modals)/login',
-        scheme: 'hoysii'
-      });
-
-
-      // Note: In Expo Go, the OAuth callback will cause an app reload.
-      // This is expected behavior for deep linking in Expo Go.
-      // The auth state will persist via Clerk's token cache.
-      const { createdSessionId, setActive } = await startGoogleSSO({
-        strategy: 'oauth_google',
-        redirectUrl,
-      });
-      
-      if (createdSessionId) {
-        await setActive({ session: createdSessionId });
-        // After reload, the useEffect will detect isSignedIn and call handleSuccessfulAuth
-      }
+      const { error: authError } = await authClient.signIn.social({ provider: 'google', callbackURL: '/login' });
+      if (authError) throw new Error(authError.message);
     } catch (err) {
       console.error('Google sign in error:', err);
-      setError(err.errors?.[0]?.message || 'Failed to sign in with Google.');
+      setError(err.message || 'Failed to sign in with Google.');
     } finally {
       setOauthLoading(null);
     }
@@ -250,23 +216,11 @@ export default function LoginScreen() {
         }
       }
 
-      const redirectUrl = AuthSession.makeRedirectUri({
-        path: '(modals)/login',
-        scheme: 'hoysii'
-      });
-
-
-      const { createdSessionId, setActive } = await startAppleSSO({
-        strategy: 'oauth_apple',
-        redirectUrl,
-      });
-
-      if (createdSessionId) {
-        await setActive({ session: createdSessionId });
-      }
+      const { error: authError } = await authClient.signIn.social({ provider: 'apple', callbackURL: '/login' });
+      if (authError) throw new Error(authError.message);
     } catch (err) {
       console.error('Apple sign in error:', err);
-      setError(err.errors?.[0]?.message || 'Failed to sign in with Apple.');
+      setError(err.message || 'Failed to sign in with Apple.');
     } finally {
       setOauthLoading(null);
     }
@@ -275,63 +229,15 @@ export default function LoginScreen() {
   // Sign In Handler
   const handleSignIn = async () => {
     if (!isSignInLoaded || !email || !password) return;
-    
     setLoading(true);
     setError('');
-    
     try {
-      // First, create the sign-in attempt
-      const signInAttempt = await signIn.create({
-        identifier: email,
-      });
-
-      // Then attempt password verification
-      const result = await signInAttempt.attemptFirstFactor({
-        strategy: 'password',
-        password,
-      });
-
-      if (result.status === 'complete') {
-        await setSignInActive({ session: result.createdSessionId });
-        handleSuccessfulAuth();
-      } else if (result.status === 'needs_second_factor') {
-        // Handle 2FA - prepare for second factor verification
-        const availableMethods = signInAttempt.supportedSecondFactorStrategies || [];
-        if (availableMethods.length > 0) {
-          // Use the first available method (usually 'totp' or 'phone_code')
-          const method = availableMethods[0];
-          setTwoFactorMethod(method);
-          
-          // Prepare the second factor (this will send the code if it's SMS/email)
-          try {
-            await signInAttempt.prepareSecondFactor({
-              strategy: method,
-            });
-            setPending2FA(true);
-          } catch (prepError) {
-            console.error('Error preparing 2FA:', prepError);
-            setError('Failed to prepare 2FA. Please try again.');
-          }
-        } else {
-          setError('Two-factor authentication is required but no method is available. Please contact support.');
-        }
-      } else {
-
-        setError('Unable to complete sign in. Please try again.');
-      }
+      const { error: authError } = await authClient.signIn.email({ email: email.trim(), password });
+      if (authError) throw new Error(authError.message);
+      // The session hook closes this modal once Better Auth has updated it.
     } catch (err) {
       console.error('Sign in error:', err);
-      // Provide user-friendly error messages
-      const errorMessage = err.errors?.[0]?.message;
-      if (errorMessage?.includes('verification strategy')) {
-        setError('Invalid email or password. Please try again.');
-      } else if (errorMessage?.includes('Identifier')) {
-        setError('No account found with this email address.');
-      } else if (errorMessage?.includes('password')) {
-        setError('Incorrect password. Please try again.');
-      } else {
-        setError(errorMessage || 'Failed to sign in. Please try again.');
-      }
+      setError(err.message || 'Failed to sign in. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -340,23 +246,19 @@ export default function LoginScreen() {
   // Sign Up Handler
   const handleSignUp = async () => {
     if (!isSignUpLoaded || !email || !password) return;
-    
     setLoading(true);
     setError('');
-    
     try {
-      await signUp.create({
-        emailAddress: email,
+      const { error: authError } = await authClient.signUp.email({
+        email: email.trim(),
         password,
-        firstName: firstName || undefined,
-        lastName: lastName || undefined,
+        name: `${firstName} ${lastName}`.trim() || email.split('@')[0],
+        callbackURL: '/login',
       });
-
-      // Send email verification
-      await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
+      if (authError) throw new Error(authError.message);
       setPendingVerification(true);
     } catch (err) {
-      setError(err.errors?.[0]?.message || 'Failed to sign up. Please try again.');
+      setError(err.message || 'Failed to sign up. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -364,26 +266,16 @@ export default function LoginScreen() {
 
   // Verify Email Handler
   const handleVerifyEmail = async () => {
-    if (!isSignUpLoaded || !verificationCode) return;
-    
     setLoading(true);
     setError('');
-    
     try {
-      const result = await signUp.attemptEmailAddressVerification({
-        code: verificationCode,
-      });
-
-      if (result.status === 'complete') {
-        await setSignUpActive({ session: result.createdSessionId });
-        // The useEffect watching isSignedIn & clerkUser will call handleSuccessfulAuth
-        // once the auth state fully propagates
-      } else {
-
-      }
+      const { data, error: authError } = await authClient.getSession();
+      if (authError) throw new Error(authError.message);
+      if (!data?.user) setError('Open the verification link in your email, then sign in.');
+      else setPendingVerification(false);
     } catch (err) {
       console.error('Verification error:', err);
-      setError(err.errors?.[0]?.message || 'Invalid verification code.');
+      setError(err.message || 'Could not verify your session.');
     } finally {
       setLoading(false);
     }
@@ -391,30 +283,7 @@ export default function LoginScreen() {
 
   // Verify 2FA Handler
   const handleVerify2FA = async () => {
-    if (!isSignInLoaded || !twoFactorCode || !twoFactorMethod) return;
-    
-    setLoading(true);
-    setError('');
-    
-    try {
-      const result = await signIn.attemptSecondFactor({
-        strategy: twoFactorMethod,
-        code: twoFactorCode,
-      });
-
-      if (result.status === 'complete') {
-        await setSignInActive({ session: result.createdSessionId });
-        handleSuccessfulAuth();
-      } else {
-
-        setError('Unable to complete verification. Please try again.');
-      }
-    } catch (err) {
-      console.error('2FA verification error:', err);
-      setError(err.errors?.[0]?.message || 'Invalid verification code. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+    setError('Two-factor sign-in is not configured yet. Please contact support.');
   };
 
   const switchMode = () => {
@@ -504,33 +373,20 @@ export default function LoginScreen() {
               
               <Text style={styles.title}>Verify your email</Text>
               <Text style={styles.subtitle}>
-                We sent a verification code to {email}
+                We sent a verification link to {email}. Open that link, then sign in.
               </Text>
 
               {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Verification Code</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter code"
-                  placeholderTextColor="#9CA3AF"
-                  value={verificationCode}
-                  onChangeText={setVerificationCode}
-                  keyboardType="number-pad"
-                  autoFocus
-                />
-              </View>
-
               <TouchableOpacity
                 style={[styles.submitButton, loading && styles.submitButtonDisabled]}
                 onPress={handleVerifyEmail}
-                disabled={loading || !verificationCode}
+                disabled={loading}
               >
                 {loading ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.submitButtonText}>Verify</Text>
+                  <Text style={styles.submitButtonText}>I opened the link</Text>
                 )}
               </TouchableOpacity>
 

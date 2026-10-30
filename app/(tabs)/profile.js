@@ -1,6 +1,6 @@
 import { View, Text, TouchableOpacity, Image, StyleSheet, ScrollView, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuth, useUser } from '@clerk/clerk-expo';
+import { useAuth, useUser } from '../../lib/auth';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 

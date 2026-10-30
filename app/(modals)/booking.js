@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Calendar } from 'react-native-calendars';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuth } from '@clerk/clerk-expo';
+import { useAuth } from '../../lib/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Animated, {
   useSharedValue,
@@ -17,7 +17,7 @@ import Animated, {
   interpolateColor,
 } from 'react-native-reanimated';
 import WhatsAppModal from '../../components/WhatsAppModal';
-import { supabase, createSupabaseClient } from '../../lib/supabase';
+import { api, checkRoomAvailability, getUnavailableDates } from '../../lib/api';
 import { StatusBar } from 'expo-status-bar';
 
 const WHATSAPP_STORAGE_KEY = '@user_whatsapp_number';
@@ -189,10 +189,11 @@ function formatCancellationDeadline(checkIn) {
 // - Review of hotel details
 // ----------------------------------------------------------------------
 export default function BookingReview() {
+  const bookingKey = useRef(`booking-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
-  const { isSignedIn, userId, getToken } = useAuth();
+  const { isSignedIn, userId } = useAuth();
 
   // Get dynamic data from route params
   const hotelId = params.hotelId;
@@ -221,6 +222,37 @@ export default function BookingReview() {
   const [guestsModalVisible, setGuestsModalVisible] = useState(false);
   const [selectedDates, setSelectedDates] = useState({ checkIn: checkIn, checkOut: checkOut });
   const [markedDates, setMarkedDates] = useState({});
+  const [calendarMonth, setCalendarMonth] = useState(checkIn && /^\d{4}-\d{2}/.test(checkIn) ? checkIn.slice(0, 7) : new Date().toISOString().slice(0, 7));
+  const [unavailableByMonth, setUnavailableByMonth] = useState({});
+  const [dateError, setDateError] = useState('');
+  const [checkingDates, setCheckingDates] = useState(false);
+  const availabilityKey = `${roomId}:${adults}:${calendarMonth}`;
+  const unavailableForRoom = new Set(Object.entries(unavailableByMonth)
+    .filter(([key]) => key.startsWith(`${roomId}:${adults}:`))
+    .flatMap(([, dates]) => dates));
+  const checkoutBoundary = selectedDates.checkIn && !selectedDates.checkOut
+    ? [...unavailableForRoom].filter((date) => date > selectedDates.checkIn).sort()[0]
+    : null;
+  const calendarMarks = { ...markedDates };
+  for (const date of unavailableForRoom) calendarMarks[date] = { disabled: true, disableTouchEvent: true };
+  if (checkoutBoundary) calendarMarks[checkoutBoundary] = { textColor: '#6B7280' };
+
+  useEffect(() => {
+    if (!datesModalVisible || !roomId || unavailableByMonth[availabilityKey]) return;
+    const [year, month] = calendarMonth.split('-').map(Number);
+    const from = `${calendarMonth}-01`;
+    const to = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+    let active = true;
+    getUnavailableDates({ roomId, from, to, adults }).then((dates) => {
+      if (active) {
+        setUnavailableByMonth((current) => ({ ...current, [availabilityKey]: dates }));
+        setDateError('');
+      }
+    }).catch(() => {
+      if (active) setDateError('Could not check room dates. Please try again.');
+    });
+    return () => { active = false; };
+  }, [datesModalVisible, availabilityKey, roomId]);
   const [priceTooltipVisible, setPriceTooltipVisible] = useState(false);
   const [whatsappModalVisible, setWhatsappModalVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -280,7 +312,6 @@ export default function BookingReview() {
     }
   }, []);
 
-
   // Track if we've already triggered the WhatsApp check after login
   const [hasCheckedWhatsApp, setHasCheckedWhatsApp] = useState(false);
 
@@ -294,16 +325,15 @@ export default function BookingReview() {
       if (params.showWhatsAppCheck === 'true' && isSignedIn && !hasCheckedWhatsApp) {
         setHasCheckedWhatsApp(true); // Mark as checked
         try {
-          // Check Supabase with authenticated client
+          // Check the signed-in guest profile.
           if (!userId) return;
 
-          const token = await getToken({ template: 'supabase' });
-          const authenticatedSupabase = createSupabaseClient(token);
+          const authenticatedApi = api;
 
-          const { data: userData, error: userError } = await authenticatedSupabase
+          const { data: userData, error: userError } = await authenticatedApi
             .from('users')
             .select('phone_number')
-            .eq('clerk_id', userId)
+            .eq('id', userId)
             .maybeSingle();
 
           if (userError) {
@@ -327,6 +357,7 @@ export default function BookingReview() {
 
     checkWhatsAppAfterLogin();
   }, [params.showWhatsAppCheck, isSignedIn, hasCheckedWhatsApp, userId]);
+
 
   // Calculate cancellation deadline (24 hours before check-in)
   const getCancellationDeadline = () => {
@@ -370,8 +401,14 @@ export default function BookingReview() {
   // ----------------------------------------------------------------------
 
   // Handle date selection in the calendar
-  const handleDayPress = (day) => {
+  const handleDayPress = async (day) => {
     const dateString = day.dateString;
+    if (checkingDates || (unavailableForRoom.has(dateString) && dateString !== checkoutBoundary)) return;
+    if (!unavailableByMonth[availabilityKey]) {
+      setDateError('Checking room dates. Please wait.');
+      return;
+    }
+    setDateError('');
     
     if (!selectedDates.checkIn || (selectedDates.checkIn && selectedDates.checkOut)) {
       // Start new selection
@@ -385,6 +422,22 @@ export default function BookingReview() {
         },
       });
     } else if (dateString > selectedDates.checkIn) {
+      if (getDateRange(selectedDates.checkIn, dateString).slice(0, -1).some((date) => unavailableForRoom.has(date))) {
+        setDateError('This stay includes an unavailable night. Choose other dates.');
+        return;
+      }
+      setCheckingDates(true);
+      try {
+        if (!await checkRoomAvailability(roomId, selectedDates.checkIn, dateString)) {
+          setDateError('This room is unavailable for those dates. Choose another stay.');
+          return;
+        }
+      } catch {
+        setDateError('Could not check room availability. Please try again.');
+        return;
+      } finally {
+        setCheckingDates(false);
+      }
       // Set checkout date and mark range
       const newDates = { ...selectedDates, checkOut: dateString };
       setSelectedDates(newDates);
@@ -419,8 +472,20 @@ export default function BookingReview() {
   };
   
   // Update dates
-  const handleDatesSave = () => {
+  const handleDatesSave = async () => {
     if (selectedDates.checkIn && selectedDates.checkOut) {
+      setCheckingDates(true);
+      try {
+        if (!await checkRoomAvailability(roomId, selectedDates.checkIn, selectedDates.checkOut)) {
+          setDateError('This room is no longer available for those dates. Choose another stay.');
+          return;
+        }
+      } catch {
+        setDateError('Could not check room availability. Please try again.');
+        return;
+      } finally {
+        setCheckingDates(false);
+      }
       setCheckIn(selectedDates.checkIn);
       setCheckOut(selectedDates.checkOut);
       
@@ -657,10 +722,14 @@ export default function BookingReview() {
       <DatesModal
         visible={datesModalVisible}
         selectedDates={selectedDates}
-        markedDates={markedDates}
+        markedDates={calendarMarks}
         onDayPress={handleDayPress}
         onSave={handleDatesSave}
         onClose={() => setDatesModalVisible(false)}
+        onMonthChange={setCalendarMonth}
+        currentMonth={calendarMonth}
+        dateError={dateError}
+        checkingDates={checkingDates || !unavailableByMonth[availabilityKey]}
       />
 
       {/* Guests Modal */}
@@ -729,14 +798,12 @@ export default function BookingReview() {
               }
 
               // Get auth token and create authenticated client
-              const token = await getToken({ template: 'supabase' });
-              const authenticatedSupabase = createSupabaseClient(token);
+              const authenticatedApi = api;
 
-              // Check Supabase users table with authenticated client
-              const { data: userData, error: userError } = await authenticatedSupabase
+              const { data: userData, error: userError } = await authenticatedApi
                 .from('users')
                 .select('phone_number')
-                .eq('clerk_id', userId)
+                .eq('id', userId)
                 .maybeSingle();
 
               if (userError) {
@@ -778,20 +845,12 @@ export default function BookingReview() {
                 return;
               }
 
-              // Get Supabase User ID from Clerk ID using authenticated client
-              // Note: We can reuse the token/client from above if we hoist the variable, 
-              // but for safety/simplicity in this scope we'll get it again if needed or use the one we have.
-              // Ideally we'd reuse `authenticatedSupabase` but it's inside a try/catch block scope above? 
-              // Actually, the previous block was inside a try/catch for "STEP B". This is "STEP D".
-              // Let's get a fresh token/client to be safe and consistent.
-              
-              const token = await getToken({ template: 'supabase' });
-              const authenticatedSupabase = createSupabaseClient(token);
+              const authenticatedApi = api;
 
-              const { data: userData, error: userError } = await authenticatedSupabase
+              const { data: userData, error: userError } = await authenticatedApi
                 .from('users')
                 .select('id')
-                .eq('clerk_id', userId)
+                .eq('id', userId)
                 .maybeSingle();
 
               if (userError || !userData) {
@@ -800,20 +859,23 @@ export default function BookingReview() {
                 return;
               }
 
-              const supabaseUserId = userData.id;
+              const accountUserId = userData.id;
 
-              const { data, error } = await authenticatedSupabase
+              const { data, error } = await authenticatedApi
                 .from('bookings')
                 .insert([
                   {
-                    user_id: supabaseUserId,
+                    user_id: accountUserId,
                     hotel_id: hotelId,
                     room_id: roomId,
                     check_in_date: checkIn,
                     check_out_date: checkOut,
                     total_price: totalPrice,
                     payment_status: 'pending', // Manual payment for now
-                    payment_provider: paymentMethod.id
+                    payment_provider: paymentMethod.id,
+                    guests: adults + children,
+                    adults,
+                    idempotency_key: bookingKey.current,
                   }
                 ])
                 .select();
@@ -837,7 +899,8 @@ export default function BookingReview() {
               
             } catch (error) {
               console.error('Error creating booking:', error);
-              alert('Failed to book. Please try again.');
+              if (error.message?.includes('hold expired')) bookingKey.current = `booking-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+              alert(error.message || 'Failed to book. Please try again.');
             } finally {
               setSubmitting(false);
             }
@@ -875,7 +938,7 @@ export default function BookingReview() {
 // ----------------------------------------------------------------------
 
 // Dates Modal Component: Displays a calendar for selecting check-in/out dates
-function DatesModal({ visible, selectedDates, markedDates, onDayPress, onSave, onClose }) {
+function DatesModal({ visible, selectedDates, markedDates, onDayPress, onSave, onClose, onMonthChange, currentMonth, dateError, checkingDates }) {
   const translateY = useSharedValue(-50);
   const opacity = useSharedValue(0);
 
@@ -923,6 +986,8 @@ function DatesModal({ visible, selectedDates, markedDates, onDayPress, onSave, o
             <View style={modalStyles.calendarContainer}>
               <Calendar
                 onDayPress={onDayPress}
+                onMonthChange={({ year, month }) => onMonthChange(`${year}-${String(month).padStart(2, '0')}`)}
+                current={`${currentMonth}-01`}
                 markingType="period"
                 markedDates={markedDates}
                 minDate={new Date().toISOString().split('T')[0]}
@@ -952,6 +1017,7 @@ function DatesModal({ visible, selectedDates, markedDates, onDayPress, onSave, o
                 )}
               />
             </View>
+            {dateError ? <Text style={modalStyles.dateError}>{dateError}</Text> : checkingDates ? <Text style={modalStyles.dateStatus}>Checking available dates...</Text> : null}
 
             {/* Action Buttons */}
             <View style={modalStyles.actionButtons}>
@@ -963,9 +1029,9 @@ function DatesModal({ visible, selectedDates, markedDates, onDayPress, onSave, o
                 onPress={onSave} 
                 style={[
                   modalStyles.saveButton,
-                  (!selectedDates.checkIn || !selectedDates.checkOut) && modalStyles.saveButtonDisabled
+                  (!selectedDates.checkIn || !selectedDates.checkOut || checkingDates) && modalStyles.saveButtonDisabled
                 ]}
-                disabled={!selectedDates.checkIn || !selectedDates.checkOut}
+                disabled={!selectedDates.checkIn || !selectedDates.checkOut || checkingDates}
               >
                 <Text style={modalStyles.saveText}>Save</Text>
               </TouchableOpacity>
@@ -1567,6 +1633,17 @@ const modalStyles = StyleSheet.create({
     borderRadius: 10,
     margin: 0,
     padding: 0,
+  },
+  dateError: {
+    color: '#B45309',
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  dateStatus: {
+    color: '#6B7280',
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
   },
   calendarArrow: {
     width: 28,

@@ -4,17 +4,23 @@
   "main": "src/index.js",
   "compatibility_date": "2026-10-27",
   "compatibility_flags": ["nodejs_compat"],
-  "placement": {
-    "mode": "smart"
-  },
+  "placement": { "mode": "smart" },
+  "routes": [
+    { "pattern": "api.hoysii.com", "custom_domain": true }
+  ],
+  "d1_databases": [
+    { "binding": "DB", "database_name": "hoysii", "database_id": "85af438f-34dc-45a4-b366-e0bba98058bf", "migrations_dir": "migrations" }
+  ],
+  "r2_buckets": [
+    { "binding": "HOTEL_MEDIA", "bucket_name": "hoysii-hotel-media" }
+  ],
   "vars": {
     "BETTER_AUTH_URL": "https://api.hoysii.com",
+    "ADMIN_PANEL_URL": "https://admin.hoysii.com",
+    "AUTH_EMAIL_FROM": "no-reply@auth.hoysii.com",
     "TRUSTED_ORIGINS": "https://admin.hoysii.com,https://www.hoysii.com,hoysii://"
-  }
-  ,
+  },
   "send_email": [{ "name": "SEND_EMAIL" }]
-  // Before deployment, add bindings for:
-  // - HYPERDRIVE: PlanetScale Postgres connection
-  // - HOTEL_MEDIA: private R2 bucket for hotel images
-  // - SEND_EMAIL: Cloudflare Email Service binding
+  // Set BETTER_AUTH_SECRET, ADMIN_AUTH_SECRET, ADMIN_EMAIL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
+  // APPLE_CLIENT_ID, APPLE_TEAM_ID, APPLE_KEY_ID, and APPLE_PRIVATE_KEY as Worker secrets.
 }
