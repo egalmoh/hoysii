@@ -1,114 +1,116 @@
--- Apply this after creating the PlanetScale Postgres database.  Better Auth's
--- generated tables are kept here so the entire first release is reproducible.
+-- Cloudflare D1 schema. Monetary values are stored as integer US cents.
 CREATE TABLE IF NOT EXISTS "user" (
-  id text PRIMARY KEY,
-  name text NOT NULL,
-  email text NOT NULL UNIQUE,
-  "emailVerified" boolean NOT NULL DEFAULT false,
-  image text,
-  "createdAt" timestamp NOT NULL DEFAULT now(),
-  "updatedAt" timestamp NOT NULL DEFAULT now()
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  email TEXT NOT NULL UNIQUE,
+  emailVerified INTEGER NOT NULL DEFAULT 0,
+  image TEXT,
+  createdAt INTEGER NOT NULL,
+  updatedAt INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS session (
-  id text PRIMARY KEY,
-  "expiresAt" timestamp NOT NULL,
-  token text NOT NULL UNIQUE,
-  "createdAt" timestamp NOT NULL DEFAULT now(),
-  "updatedAt" timestamp NOT NULL DEFAULT now(),
-  "ipAddress" text,
-  "userAgent" text,
-  "userId" text NOT NULL REFERENCES "user"(id) ON DELETE CASCADE
+  id TEXT PRIMARY KEY,
+  expiresAt INTEGER NOT NULL,
+  token TEXT NOT NULL UNIQUE,
+  createdAt INTEGER NOT NULL,
+  updatedAt INTEGER NOT NULL,
+  ipAddress TEXT,
+  userAgent TEXT,
+  userId TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS account (
-  id text PRIMARY KEY,
-  "accountId" text NOT NULL,
-  "providerId" text NOT NULL,
-  "userId" text NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
-  "accessToken" text,
-  "refreshToken" text,
-  "idToken" text,
-  "accessTokenExpiresAt" timestamp,
-  "refreshTokenExpiresAt" timestamp,
-  scope text,
-  password text,
-  "createdAt" timestamp NOT NULL DEFAULT now(),
-  "updatedAt" timestamp NOT NULL DEFAULT now()
+  id TEXT PRIMARY KEY,
+  accountId TEXT NOT NULL,
+  providerId TEXT NOT NULL,
+  userId TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+  accessToken TEXT,
+  refreshToken TEXT,
+  idToken TEXT,
+  accessTokenExpiresAt INTEGER,
+  refreshTokenExpiresAt INTEGER,
+  scope TEXT,
+  password TEXT,
+  createdAt INTEGER NOT NULL,
+  updatedAt INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS verification (
-  id text PRIMARY KEY,
-  identifier text NOT NULL,
-  value text NOT NULL,
-  "expiresAt" timestamp NOT NULL,
-  "createdAt" timestamp,
-  "updatedAt" timestamp
+  id TEXT PRIMARY KEY,
+  identifier TEXT NOT NULL,
+  value TEXT NOT NULL,
+  expiresAt INTEGER NOT NULL,
+  createdAt INTEGER,
+  updatedAt INTEGER
 );
 
-CREATE INDEX IF NOT EXISTS sessions_user_id_idx ON session("userId");
-CREATE INDEX IF NOT EXISTS accounts_user_id_idx ON account("userId");
+CREATE INDEX IF NOT EXISTS sessions_user_id_idx ON session(userId);
+CREATE INDEX IF NOT EXISTS accounts_user_id_idx ON account(userId);
 CREATE INDEX IF NOT EXISTS verification_identifier_idx ON verification(identifier);
 
 CREATE TABLE IF NOT EXISTS profiles (
-  user_id text PRIMARY KEY REFERENCES "user"(id) ON DELETE CASCADE,
-  full_name text,
-  phone_number text,
-  created_at timestamp NOT NULL DEFAULT now(),
-  updated_at timestamp NOT NULL DEFAULT now()
+  user_id TEXT PRIMARY KEY REFERENCES "user"(id) ON DELETE CASCADE,
+  full_name TEXT,
+  phone_number TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS hotels (
-  id text PRIMARY KEY,
-  name text NOT NULL,
-  city text NOT NULL,
-  address jsonb NOT NULL DEFAULT '[]'::jsonb,
-  google_map_link text,
-  description text,
-  starting_price numeric(12, 2) NOT NULL DEFAULT 0,
-  images jsonb NOT NULL DEFAULT '[]'::jsonb,
-  amenities jsonb NOT NULL DEFAULT '[]'::jsonb,
-  manager_phone text,
-  manager_email text,
-  manager_name text,
-  is_verified boolean NOT NULL DEFAULT false,
-  rating numeric(3, 2),
-  payment_methods jsonb NOT NULL DEFAULT '[]'::jsonb,
-  security_features jsonb NOT NULL DEFAULT '[]'::jsonb,
-  created_at timestamp NOT NULL DEFAULT now(),
-  updated_at timestamp NOT NULL DEFAULT now()
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  city TEXT NOT NULL,
+  address TEXT NOT NULL DEFAULT '[]',
+  google_map_link TEXT,
+  description TEXT,
+  starting_price_cents INTEGER NOT NULL DEFAULT 0 CHECK(starting_price_cents >= 0),
+  images TEXT NOT NULL DEFAULT '[]',
+  amenities TEXT NOT NULL DEFAULT '[]',
+  manager_phone TEXT,
+  manager_email TEXT,
+  manager_name TEXT,
+  is_verified INTEGER NOT NULL DEFAULT 0,
+  rating REAL,
+  payment_methods TEXT NOT NULL DEFAULT '[]',
+  security_features TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS rooms (
-  id text PRIMARY KEY,
-  hotel_id text NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
-  name text NOT NULL,
-  price numeric(12, 2) NOT NULL,
-  amenities jsonb NOT NULL DEFAULT '[]'::jsonb,
-  images jsonb NOT NULL DEFAULT '[]'::jsonb,
-  capacity_adults integer NOT NULL DEFAULT 2,
-  bed_size text,
-  total_units integer NOT NULL DEFAULT 1,
-  created_at timestamp NOT NULL DEFAULT now(),
-  updated_at timestamp NOT NULL DEFAULT now()
+  id TEXT PRIMARY KEY,
+  hotel_id TEXT NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  price_cents INTEGER NOT NULL CHECK(price_cents >= 0),
+  amenities TEXT NOT NULL DEFAULT '[]',
+  images TEXT NOT NULL DEFAULT '[]',
+  capacity_adults INTEGER NOT NULL DEFAULT 2,
+  bed_size TEXT,
+  total_units INTEGER NOT NULL DEFAULT 1 CHECK(total_units > 0),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-
 CREATE INDEX IF NOT EXISTS rooms_hotel_id_idx ON rooms(hotel_id);
 
 CREATE TABLE IF NOT EXISTS bookings (
-  id text PRIMARY KEY,
-  user_id text NOT NULL REFERENCES "user"(id),
-  hotel_id text NOT NULL REFERENCES hotels(id),
-  room_id text NOT NULL REFERENCES rooms(id),
-  check_in_date date NOT NULL,
-  check_out_date date NOT NULL,
-  total_price numeric(12, 2) NOT NULL,
-  payment_status text NOT NULL DEFAULT 'pending',
-  payment_provider text,
-  booking_status text NOT NULL DEFAULT 'payment_pending',
-  created_at timestamp NOT NULL DEFAULT now(),
-  updated_at timestamp NOT NULL DEFAULT now()
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES "user"(id),
+  hotel_id TEXT NOT NULL REFERENCES hotels(id),
+  room_id TEXT NOT NULL REFERENCES rooms(id),
+  check_in_date TEXT NOT NULL,
+  check_out_date TEXT NOT NULL,
+  guests INTEGER NOT NULL DEFAULT 1,
+  total_cents INTEGER NOT NULL CHECK(total_cents >= 0),
+  payment_status TEXT NOT NULL DEFAULT 'pending',
+  payment_provider TEXT,
+  booking_status TEXT NOT NULL DEFAULT 'payment_pending',
+  idempotency_key TEXT UNIQUE,
+  transaction_reference TEXT,
+  receipt_image_url TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-
 CREATE INDEX IF NOT EXISTS bookings_user_id_idx ON bookings(user_id);
 CREATE INDEX IF NOT EXISTS bookings_hotel_id_idx ON bookings(hotel_id);
+CREATE INDEX IF NOT EXISTS bookings_room_dates_idx ON bookings(room_id, check_in_date, check_out_date);

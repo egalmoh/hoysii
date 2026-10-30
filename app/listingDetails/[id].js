@@ -5,7 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Animated from 'react-native-reanimated';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import { ActivityIndicator } from 'react-native';
 import AvailableRoomCard from '../../components/AvailableRoomCard';
 
@@ -31,35 +31,43 @@ export default function ListingScreen() {
   const scrollRef = useRef(null);
 
   useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setHotel(null);
+    setRooms([]);
     const fetchHotelAndRooms = async () => {
       try {
         // Fetch hotel
-        const { data: hotelData, error: hotelError } = await supabase
+        const { data: hotelData, error: hotelError } = await api
           .from('hotels')
           .select('*')
           .eq('id', hotelId)
           .single();
         
         if (hotelError) throw hotelError;
-        setHotel(hotelData);
+        if (active) setHotel(hotelData);
 
         // Fetch rooms
-        const { data: roomsData, error: roomsError } = await supabase
+        const { data: roomsData, error: roomsError } = await api
           .from('rooms')
           .select('*')
-          .eq('hotel_id', hotelId);
+          .eq('hotel_id', hotelId)
+          .eq('check_in', checkIn && checkIn !== 'select dates' && checkOut ? checkIn : '')
+          .eq('check_out', checkIn && checkIn !== 'select dates' && checkOut ? checkOut : '')
+          .eq('adults', Number(adults) || 1);
           
         if (roomsError) throw roomsError;
-        setRooms(roomsData || []);
+        if (active) setRooms(roomsData || []);
       } catch (error) {
         console.error('Error fetching details:', error);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
     fetchHotelAndRooms();
-  }, [hotelId]);
+    return () => { active = false; };
+  }, [hotelId, checkIn, checkOut, adults]);
 
   if (loading) {
     return (
@@ -260,6 +268,7 @@ export default function ListingScreen() {
             <Text style={styles.availabilityTitle}>Availability</Text>
 
             <View style={styles.roomsList}>
+              {displayRooms.length === 0 && <Text style={styles.emptyRoomsText}>No rooms are available for these dates. Try different dates.</Text>}
               {displayRooms.map((room, index) => (
                 <View key={room.id} style={index < rooms.length - 1 ? styles.roomCardWrapper : null}>
                   <AvailableRoomCard room={room} hotel={hotel} searchParams={{ checkIn, checkOut, adults, children }} />
@@ -478,6 +487,12 @@ const styles = StyleSheet.create({
   },
   roomsList: {
     width: '100%',
+  },
+  emptyRoomsText: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 21,
   },
   roomCardWrapper: {
     width: '100%',

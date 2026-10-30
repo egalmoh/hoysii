@@ -1,7 +1,7 @@
 import { Tabs } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuth } from '@clerk/clerk-expo';
+import { useAuth } from '../../lib/auth';
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();

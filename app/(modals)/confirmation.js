@@ -5,7 +5,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import LottieView from 'lottie-react-native';
-import { useUser } from '@clerk/clerk-expo';
+import { useUser } from '../../lib/auth';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAudioPlayer } from 'expo-audio';
 
@@ -151,9 +151,9 @@ export default function BookingConfirmationScreen() {
         <TouchableOpacity
           style={styles.doneButton}
           activeOpacity={0.8}
-          onPress={() => router.replace('/(tabs)')}
+          onPress={() => router.replace('/(tabs)/trips')}
         >
-          <Text style={styles.doneButtonText}>Back Home</Text>
+          <Text style={styles.doneButtonText}>Go to trip page</Text>
         </TouchableOpacity>
       </View>
     </View>

@@ -1,6 +1,6 @@
 # Later
 
-This is the parking list for work that is not part of the current traveler-app reliability focus. An item moves out of this list only after an explicit product decision.
+This is the parking list for work outside the launch focus: safe, reliable hotel booking. An item moves out of this list only after an explicit product decision.
 
 ## Public surfaces
 
@@ -15,17 +15,25 @@ This is the parking list for work that is not part of the current traveler-app r
 - Hotel performance reporting
 - Driver coordinator and driver-facing tools
 
-## Travel additions
+## Arrival and transport
 
 - Live flight-status monitoring after a customer adds a flight
-- Airport-pickup ordering and driver assignment workflows
-- Driver contact, vehicle, plate, and live pickup-status updates from operations
-- Hotel-managed pickup updates from hotel partners
+- Airport pickup as a bookable service, including hotel-managed pickup
+- Driver assignment, contact, vehicle, license plate, and pickup-status updates
+- Vetted local transfers between hotels and other destinations
 
 ## Traveler-app additions
 
 - Reviews and rebooking
 - Saved stays
 - Additional destinations beyond the initial launch market
-- Apartments and other accommodation types
+- Reliable, verified serviced apartments and longer stays
+
+## Experiences and hospitality services
+
+- Curated experiences in Somalia, with vetted hosts and clear prices
+- Local guides and cultural or city experiences
+- In-stay guest assistance for issues, special requests, and extensions
+- Optional dining, laundry, and other hotel services when partners can reliably fulfill them
+- Family and group travel support, including connected rooms and larger accommodation
 

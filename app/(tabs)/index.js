@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, ScrollView, useWindowDimensions, StyleShe
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAuth } from '@clerk/clerk-expo';
+import { useAuth } from '../../lib/auth';
 import * as WebBrowser from 'expo-web-browser'; // Ensure WebBrowser is ready if needed, though usually handled in root
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import Animated, { 
@@ -13,7 +13,7 @@ import Animated, {
   interpolate,
   Extrapolation
 } from 'react-native-reanimated';
-import { supabase, createSupabaseClient } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import { ActivityIndicator } from 'react-native';
 import HotelCard from '../../components/HotelCard';
 import PopularStayCard from '../../components/PopularStayCard';
@@ -25,7 +25,7 @@ export default function ExploreScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { getToken, userId } = useAuth(); // Get auth helpers
+  const { userId } = useAuth();
   const padding = 40;
   const gap = 16;
   const cardWidth = Math.min(191, (width - padding - gap) / 2);
@@ -45,30 +45,18 @@ export default function ExploreScreen() {
   const [hotels, setHotels] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch hotels from Supabase
+  // Fetch hotel inventory from the Worker API.
   useEffect(() => {
     const fetchHotels = async () => {
       try {
         setLoading(true);
         
-        // 1. Try to get the Supabase token from Clerk
-        let token = null;
-        try {
-          token = await getToken({ template: 'supabase' });
-        } catch (tokenError) {
-          console.warn('Could not get Clerk token, using anon client:', tokenError?.message || tokenError);
-        }
-        
-        // 2. Create client (authenticated if token available, anon otherwise)
-        const client = createSupabaseClient(token);
-        
-        // 3. Fetch data
-        const { data, error } = await client
+        const { data, error } = await api
           .from('hotels')
           .select('*');
         
         if (error) {
-          console.error('Supabase query error:', JSON.stringify({
+          console.error('Hotel query error:', JSON.stringify({
             message: error.message,
             details: error.details,
             hint: error.hint,

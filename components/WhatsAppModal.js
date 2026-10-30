@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Modal, Pressable, KeyboardAvoidingView, Platform, TextInput, FlatList, useWindowDimensions } from 'react-native';
 // import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useUser, useAuth } from '@clerk/clerk-expo';
+import { useUser } from '../lib/auth';
 import { Feather } from '@expo/vector-icons';
-import { syncUser } from '../lib/supabase';
+import { syncUser } from '../lib/api';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { 
   useSharedValue, 
@@ -65,7 +65,6 @@ const COUNTRIES = [
 export default function WhatsAppModal({ visible, onClose, onSuccess }) {
   const insets = useSafeAreaInsets();
   const { user } = useUser();
-  const { getToken } = useAuth();
   const { height: SCREEN_HEIGHT } = useWindowDimensions();
   
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -113,7 +112,7 @@ export default function WhatsAppModal({ visible, onClose, onSuccess }) {
   // HANDLERS
   // ----------------------------------------------------------------------
 
-  // Validates and saves the number to local storage and Clerk user metadata
+  // Validate and save the support phone number to the Hoysii profile.
   const handleSave = async () => {
     if (!validatePhoneNumber()) {
       setError('Please enter a valid phone number');
@@ -126,47 +125,8 @@ export default function WhatsAppModal({ visible, onClose, onSuccess }) {
     const formattedNumber = getFormattedNumber();
     
     try {
-      // Also save to Clerk user metadata if available
       if (user) {
-        try {
-          // Get the Supabase token
-          const token = await getToken({ template: 'supabase' });
-          
-          await user.update({
-            unsafeMetadata: {
-              ...user.unsafeMetadata,
-              whatsappNumber: formattedNumber,
-            },
-          });
-          
-          // Sync to Supabase
-          const email = user.primaryEmailAddress?.emailAddress;
-          const fullName = user.fullName;
-          
-          // Force sync with the new number
-          await syncUser({
-            clerk_id: user.id,
-            email,
-            full_name: fullName,
-            phone_number: formattedNumber
-          }, token);
-
-        } catch (clerkError) {
-          console.log('Could not save to Clerk metadata or Supabase:', clerkError);
-          // If Clerk update fails, we should still try to sync to Supabase directly
-           const email = user.primaryEmailAddress?.emailAddress;
-           const fullName = user.fullName;
-           
-           // Try to get token again if needed, or reuse if we got it
-           const token = await getToken({ template: 'supabase' });
-
-           await syncUser({
-             clerk_id: user.id || '',
-             email: email || '',
-             full_name: fullName || '',
-             phone_number: formattedNumber
-           }, token);
-        }
+        await syncUser({ full_name: user.fullName, phone_number: formattedNumber });
       }
       
       // Success callback
@@ -233,7 +193,7 @@ export default function WhatsAppModal({ visible, onClose, onSuccess }) {
                 {/* Phone Number Input */}
                 <TextInput
                   style={styles.phoneInput}
-                  placeholder="Enter phone number"
+                  placeholder="+252xxxxxxxx"
                   placeholderTextColor="#6B7280"
                   value={phoneNumber}
                   onChangeText={setPhoneNumber}
