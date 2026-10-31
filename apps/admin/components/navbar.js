@@ -18,6 +18,7 @@ export function Navbar() {
 
   const navItems = [
     { name: "Hotels", href: "/", icon: LayoutDashboard },
+    { name: "Operations", href: "/operations", icon: CalendarDays },
     { name: "Bookings", href: "/bookings", icon: CalendarDays },
     { name: "Users", href: "/users", icon: Users },
   ];

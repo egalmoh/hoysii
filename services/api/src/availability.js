@@ -10,7 +10,7 @@ const CITY_ALIASES = {
 export function citySearchTerms(city) {
   return CITY_ALIASES[city.trim().toLowerCase()] || [city];
 }
-export const ACTIVE_BOOKING_FILTER = `b.booking_status NOT IN ('cancelled', 'refunded', 'expired') AND b.payment_status != 'refunded' AND (b.booking_status != 'payment_pending' OR b.payment_status != 'pending' OR b.created_at > datetime('now', '-${PAYMENT_HOLD_MINUTES} minutes'))`;
+export const ACTIVE_BOOKING_FILTER = `b.booking_status NOT IN ('cancelled', 'refunded', 'expired', 'recovery_required') AND b.payment_status != 'refunded' AND (b.booking_status != 'payment_pending' OR b.payment_status != 'pending' OR datetime(COALESCE(b.hold_expires_at, datetime(b.created_at, '+${PAYMENT_HOLD_MINUTES} minutes'))) > datetime('now'))`;
 
 export const INSERT_BOOKING_SQL = `WITH RECURSIVE nights(day) AS (
   SELECT ?
@@ -24,7 +24,8 @@ WHERE r.id = ? AND NOT EXISTS (
   SELECT 1 FROM nights n WHERE (
     SELECT COUNT(*) FROM bookings b
     WHERE b.room_id = r.id AND b.check_in_date <= n.day AND b.check_out_date > n.day AND ${ACTIVE_BOOKING_FILTER}
-  ) >= r.total_units
+  ) + (SELECT COALESCE(SUM(i.units), 0) FROM inventory_blocks i
+    WHERE i.room_id = r.id AND i.start_date <= n.day AND i.end_date > n.day) >= r.total_units
 )`;
 
 export function addDays(date, days) {
@@ -43,7 +44,8 @@ export function roomAvailable(room, bookings, checkIn, checkOut) {
   const capacity = Number(room.total_units);
   if (!Number.isInteger(capacity) || capacity < 1) return false;
   return nightsBetween(checkIn, checkOut).every((day) =>
-    bookings.filter((booking) => booking.room_id === room.id && booking.check_in_date <= day && booking.check_out_date > day).length < capacity
+    bookings.filter((booking) => booking.room_id === room.id && booking.check_in_date <= day && booking.check_out_date > day)
+      .reduce((units, booking) => units + Number(booking.units || 1), 0) < capacity
   );
 }
 

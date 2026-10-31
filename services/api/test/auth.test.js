@@ -1,37 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { DatabaseSync } from 'node:sqlite';
+import { localD1 } from './support/d1.js';
 import { createAuth, createAdminAuth } from '../src/auth.js';
 import worker from '../src/index.js';
-
-function localD1() {
-  const sqlite = new DatabaseSync(':memory:');
-  for (const migration of ['0001_hoysii.sql', '0003_admin_auth.sql', '0004_traveler_management.sql']) {
-    sqlite.exec(readFileSync(new URL(`../migrations/${migration}`, import.meta.url), 'utf8'));
-  }
-  return {
-    close: () => sqlite.close(),
-    async exec(sql) { sqlite.exec(sql); return { count: 1, duration: 0 }; },
-    async batch(statements) { return Promise.all(statements.map((statement) => statement.all())); },
-    prepare(sql) {
-      const statement = sqlite.prepare(sql);
-      let parameters = [];
-      return {
-        bind(...values) { parameters = values; return this; },
-        async first() { return statement.get(...parameters) || null; },
-        async all() {
-          if (/^(?:insert|update|delete)\b/i.test(sql) && !/\breturning\b/i.test(sql)) {
-            const result = statement.run(...parameters);
-            return { results: [], meta: { changes: result.changes, last_row_id: result.lastInsertRowid }, success: true };
-          }
-          return { results: statement.all(...parameters), meta: { changes: 0 }, success: true };
-        },
-        async run() { return { meta: { changes: statement.run(...parameters).changes }, success: true }; },
-      };
-    },
-  };
-}
 
 async function post(auth, path, body, origin = 'hoysii://') {
   const response = await auth.handler(new Request(`https://api.hoysii.com${path}`, {

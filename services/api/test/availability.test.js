@@ -37,7 +37,8 @@ test('Somali and English spellings find the same destination inventory', () => {
 test('booking insert enforces per-night capacity and releases expired unpaid holds', () => {
   const database = new DatabaseSync(':memory:');
   database.exec(`CREATE TABLE rooms (id TEXT PRIMARY KEY, hotel_id TEXT, total_units INTEGER);
-    CREATE TABLE bookings (id TEXT PRIMARY KEY, user_id TEXT, hotel_id TEXT, room_id TEXT, check_in_date TEXT, check_out_date TEXT, guests INTEGER, total_cents INTEGER, payment_status TEXT, payment_provider TEXT, booking_status TEXT, idempotency_key TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP);
+    CREATE TABLE bookings (id TEXT PRIMARY KEY, user_id TEXT, hotel_id TEXT, room_id TEXT, check_in_date TEXT, check_out_date TEXT, guests INTEGER, total_cents INTEGER, payment_status TEXT, payment_provider TEXT, booking_status TEXT, idempotency_key TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP, hold_expires_at TEXT);
+    CREATE TABLE inventory_blocks (room_id TEXT, start_date TEXT, end_date TEXT, units INTEGER);
     INSERT INTO rooms VALUES ('room-1', 'hotel-1', 1);
     INSERT INTO bookings (id, room_id, check_in_date, check_out_date, payment_status, booking_status, created_at)
       VALUES ('expired-hold', 'room-1', '2026-12-03', '2026-12-04', 'pending', 'payment_pending', datetime('now', '-16 minutes'));

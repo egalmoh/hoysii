@@ -10,7 +10,6 @@ import Animated, {
 import { Feather } from '@expo/vector-icons';
 import { Calendar } from 'react-native-calendars';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getUnavailableDates } from '../lib/api';
 
 const POPULAR_PLACES = [
   {
@@ -52,7 +51,6 @@ export default function SearchModal({
   const [children, setChildren] = useState(0);
   const [markedDates, setMarkedDates] = useState({});
   const [calendarMonth, setCalendarMonth] = useState(new Date().toISOString().slice(0, 7));
-  const [unavailableByMonth, setUnavailableByMonth] = useState({});
   const [dateError, setDateError] = useState('');
   const wasVisible = useRef(false);
 
@@ -73,41 +71,15 @@ export default function SearchModal({
       setAdults(searchData?.guests?.adults || 1);
       setChildren(searchData?.guests?.children || 0);
       setCalendarMonth(checkIn ? checkIn.slice(0, 7) : new Date().toISOString().slice(0, 7));
-      setUnavailableByMonth({});
       setDateError('');
     }
     wasVisible.current = visible;
   }, [visible, searchData]);
-  const availabilityCity = selectedPlace?.name || (searchText ? searchText.split(',')[0].trim() : searchData?.location?.name || '');
-  const availabilityKey = `${availabilityCity.toLowerCase()}:${adults}:${calendarMonth}`;
-  const unavailableForCity = new Set(Object.entries(unavailableByMonth)
-    .filter(([key]) => key.startsWith(`${availabilityCity.toLowerCase()}:${adults}:`))
-    .flatMap(([, dates]) => dates));
-  const checkoutBoundary = selectedDates.checkIn && !selectedDates.checkOut
-    ? [...unavailableForCity].filter((date) => date > selectedDates.checkIn).sort()[0]
-    : null;
-  const calendarMarks = { ...markedDates };
-  for (const date of unavailableForCity) calendarMarks[date] = { disabled: true, disableTouchEvent: true };
-  if (checkoutBoundary) calendarMarks[checkoutBoundary] = { textColor: '#6B7280' };
-
-  useEffect(() => {
-    if (!visible || currentStep !== 'dates' || unavailableByMonth[availabilityKey]) return;
-    const [year, month] = calendarMonth.split('-').map(Number);
-    const from = `${calendarMonth}-01`;
-    const to = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
-    let active = true;
-    getUnavailableDates({ city: availabilityCity, from, to, adults }).then((dates) => {
-      if (active) setUnavailableByMonth((current) => ({ ...current, [availabilityKey]: dates }));
-    }).catch(() => {
-      if (active) setUnavailableByMonth((current) => ({ ...current, [availabilityKey]: [] }));
-    });
-    return () => { active = false; };
-  }, [visible, currentStep, availabilityKey]);
+  const calendarMarks = markedDates;
 
   // Handle date selection for range picking
   const handleDayPress = (day) => {
     const dateString = day.dateString;
-    if (unavailableForCity.has(dateString) && dateString !== checkoutBoundary) return;
     setDateError('');
     
     if (!selectedDates.checkIn || (selectedDates.checkIn && selectedDates.checkOut)) {
@@ -122,10 +94,6 @@ export default function SearchModal({
         },
       });
     } else if (dateString > selectedDates.checkIn) {
-      if (getDateRange(selectedDates.checkIn, dateString).slice(0, -1).some((date) => unavailableForCity.has(date))) {
-        setDateError('This stay includes an unavailable night. Choose other dates.');
-        return;
-      }
       // Set checkout date and mark range
       setSelectedDates({ ...selectedDates, checkOut: dateString });
       

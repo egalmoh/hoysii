@@ -1,11 +1,12 @@
-import { useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import LottieView from 'lottie-react-native';
 import { useUser } from '../../lib/auth';
+import { apiFetch } from '../../lib/api';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAudioPlayer } from 'expo-audio';
 
@@ -17,40 +18,49 @@ export default function BookingConfirmationScreen() {
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
   const { user } = useUser();
+  const [booking, setBooking] = useState(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let active = true;
+    apiFetch(`/v1/bookings/${encodeURIComponent(params.bookingId || '')}`).then((data) => {
+      if (data.payment_status !== 'paid' || data.booking_status !== 'confirmed') throw new Error('This booking does not have a confirmed payment yet. Check Trips or contact Hoysii support.');
+      if (active) setBooking(data);
+    }).catch((error) => { if (active) setError(error.message); });
+    return () => { active = false; };
+  }, [params.bookingId]);
   
   // Use the new expo-audio hook
   const player = useAudioPlayer(successSound);
 
   // Play success sound on mount
   useEffect(() => {
-    if (player) {
+    if (player && booking) {
       player.play();
     }
-  }, [player]);
+  }, [player, booking]);
 
-  // Get booking details from params
-  const hotelName = params.hotelName || 'Your Hotel';
-  const hotelLocation = params.hotelLocation || 'your destination';
+  const hotelName = booking?.hotels?.name || '';
+  const hotelLocation = booking?.hotels?.city || 'your destination';
   const userEmail = user?.emailAddresses?.[0]?.emailAddress || 'your email';
   const firstName = user?.firstName || 'Traveler';
-  
-  // Receipt details
-  const bookingId = params.bookingId || '#BKY-0000';
-  const checkIn = params.checkIn || '';
-  const checkOut = params.checkOut || '';
-  const adults = params.adults || '1';
-  const children = params.children || '0';
-  const hotelAddress = params.hotelAddress || 'Address not available';
+  const bookingId = booking?.reference || '';
+  const checkIn = booking?.check_in_date || '';
+  const checkOut = booking?.check_out_date || '';
+  const adults = booking?.adults || 1;
+  const children = booking?.children || 0;
+  const hotelAddress = Array.isArray(booking?.hotels?.address) ? booking.hotels.address.join(', ') : booking?.hotels?.address || 'Address not available';
 
   // Format dates for display
   const formatDate = (dateStr) => {
     if (!dateStr) return '';
-    const date = new Date(dateStr);
+    const date = new Date(`${dateStr}T12:00:00`);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
   const datesDisplay = checkIn && checkOut ? `${formatDate(checkIn)} - ${formatDate(checkOut)}` : 'N/A';
   const guestsDisplay = `${adults} Adult${adults > 1 ? 's' : ''}${children > 0 ? `, ${children} Child${children > 1 ? 'ren' : ''}` : ''}`;
+
+  if (!booking) return <View style={[styles.container, { paddingTop: insets.top + 40, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center' }]}><StatusBar style="dark" />{error ? <Text style={styles.subText}>{error}</Text> : <ActivityIndicator color="#489CFC" />}<TouchableOpacity onPress={() => router.replace('/(tabs)/trips')} style={{ padding: 20 }}><Text style={{ color: '#489CFC' }}>Go to trip page</Text></TouchableOpacity></View>;
 
   return (
     <View style={styles.container}>
@@ -99,7 +109,7 @@ export default function BookingConfirmationScreen() {
             Pack your bags, {firstName.charAt(0).toUpperCase() + firstName.slice(1)}! You're going to {hotelLocation}.
           </Text>
           <Text style={styles.subText}>
-            Your booking at <Text style={styles.boldText}>{hotelName}</Text> is confirmed. We have sent a receipt to <Text style={styles.boldText}>{userEmail}</Text>.
+            Your booking at <Text style={styles.boldText}>{hotelName}</Text> is confirmed. {booking.receipt_email_status === 'sent' ? 'We have sent your receipt to ' : 'Your receipt is available in Trips. We will also email it to '}<Text style={styles.boldText}>{userEmail}</Text>.
           </Text>
         </View>
 

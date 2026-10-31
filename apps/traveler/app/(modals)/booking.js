@@ -17,7 +17,7 @@ import Animated, {
   interpolateColor,
 } from 'react-native-reanimated';
 import WhatsAppModal from '../../components/WhatsAppModal';
-import { api, checkRoomAvailability, getUnavailableDates } from '../../lib/api';
+import { api, apiFetch, checkRoomAvailability, getUnavailableDates } from '../../lib/api';
 import { StatusBar } from 'expo-status-bar';
 
 const WHATSAPP_STORAGE_KEY = '@user_whatsapp_number';
@@ -92,9 +92,9 @@ function calculateTotalPrice(roomPrice, checkIn, checkOut) {
     if (isNaN(inDate.getTime()) || isNaN(outDate.getTime())) return 0;
     
     const nights = Math.ceil((outDate - inDate) / (1000 * 60 * 60 * 24));
-    const price = parseInt(roomPrice) || 0;
+    const price = Number(roomPrice) || 0;
     const basePrice = nights * price;
-    const serviceFee = Math.round(basePrice * 0.1);
+    const serviceFee = Math.round(basePrice * 100 * 0.1) / 100;
     
     return basePrice + serviceFee;
   } catch {
@@ -105,7 +105,7 @@ function calculateTotalPrice(roomPrice, checkIn, checkOut) {
 function calculatePriceBreakdown(roomPrice, checkIn, checkOut) {
   if (!checkIn || !checkOut || !roomPrice) {
     return {
-      nightlyRate: parseInt(roomPrice) || 0,
+      nightlyRate: Number(roomPrice) || 0,
       nights: 7,
       basePrice: 0,
       serviceFee: 0,
@@ -119,7 +119,7 @@ function calculatePriceBreakdown(roomPrice, checkIn, checkOut) {
     
     if (isNaN(inDate.getTime()) || isNaN(outDate.getTime())) {
       return {
-        nightlyRate: parseInt(roomPrice) || 0,
+        nightlyRate: Number(roomPrice) || 0,
         nights: 7,
         basePrice: 0,
         serviceFee: 0,
@@ -128,9 +128,9 @@ function calculatePriceBreakdown(roomPrice, checkIn, checkOut) {
     }
     
     const nights = Math.ceil((outDate - inDate) / (1000 * 60 * 60 * 24));
-    const nightlyRate = parseInt(roomPrice) || 0;
+    const nightlyRate = Number(roomPrice) || 0;
     const basePrice = nights * nightlyRate;
-    const serviceFee = Math.round(basePrice * 0.1);
+    const serviceFee = Math.round(basePrice * 100 * 0.1) / 100;
     const total = basePrice + serviceFee;
     
     return {
@@ -142,7 +142,7 @@ function calculatePriceBreakdown(roomPrice, checkIn, checkOut) {
     };
   } catch {
     return {
-      nightlyRate: parseInt(roomPrice) || 0,
+      nightlyRate: Number(roomPrice) || 0,
       nights: 7,
       basePrice: 0,
       serviceFee: 0,
@@ -215,7 +215,18 @@ export default function BookingReview() {
   const [checkOut, setCheckOut] = useState(params.checkOut || '');
   const [adults, setAdults] = useState(parseInt(params.adults) || 1);
   const [children, setChildren] = useState(parseInt(params.children) || 0);
-  const roomPrice = params.roomPrice || '90';
+  const [quote, setQuote] = useState(null);
+  const [quoteError, setQuoteError] = useState('');
+  const roomPrice = quote?.nightly_rate ?? params.roomPrice ?? 0;
+  const quoteMatches = quote?.check_in_date === checkIn && quote?.check_out_date === checkOut;
+  useEffect(() => {
+    if (!roomId || !checkIn || !checkOut) return;
+    let active = true;
+    apiFetch(`/v1/rooms/${encodeURIComponent(roomId)}/quote?check_in=${encodeURIComponent(checkIn)}&check_out=${encodeURIComponent(checkOut)}`).then((data) => {
+      if (active) { setQuote(data); setQuoteError(''); }
+    }).catch((error) => { if (active) { setQuote(null); setQuoteError(error.message || 'Could not load the current price and terms.'); } });
+    return () => { active = false; };
+  }, [roomId, checkIn, checkOut]);
   
   // Modal states
   const [datesModalVisible, setDatesModalVisible] = useState(false);
@@ -257,6 +268,9 @@ export default function BookingReview() {
   const [whatsappModalVisible, setWhatsappModalVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState(null);
+  useEffect(() => {
+    bookingKey.current = `booking-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }, [roomId, checkIn, checkOut, adults, children]);
 
   // Check for payment method from params or AsyncStorage
   // Using useFocusEffect to re-check when returning from payment screen
@@ -359,29 +373,6 @@ export default function BookingReview() {
   }, [params.showWhatsAppCheck, isSignedIn, hasCheckedWhatsApp, userId]);
 
 
-  // Calculate cancellation deadline (24 hours before check-in)
-  const getCancellationDeadline = () => {
-    if (!checkIn) return '';
-    
-    try {
-      const checkInDate = new Date(checkIn);
-      if (isNaN(checkInDate)) return 'no dates selected';
-      // Subtract 24 hours (1 day)
-      checkInDate.setDate(checkInDate.getDate() - 1);
-      
-      // Format as "Feb 3, 2026"
-      return checkInDate.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
-      });
-    } catch (e) {
-      return '';
-    }
-  };
-
-  const cancellationDeadline = getCancellationDeadline();
-  
   // Get all dates between start and end
   const getDateRange = (startDate, endDate) => {
     const dates = [];
@@ -513,7 +504,7 @@ export default function BookingReview() {
   
   const dateRange = formatDateRange(checkIn, checkOut) || 'Select dates';
   const guestsText = formatGuests(String(adults), String(children));
-  const totalPrice = calculateTotalPrice(roomPrice, checkIn, checkOut);
+  const totalPrice = quoteMatches ? quote.total_price : calculateTotalPrice(roomPrice, checkIn, checkOut);
   const priceBreakdown = calculatePriceBreakdown(roomPrice, checkIn, checkOut);
 
 
@@ -660,11 +651,10 @@ export default function BookingReview() {
           <View style={styles.cancellationPolicySection}>
             <Text style={styles.cancellationPolicyTitle}>Cancellation Policy</Text>
             <Text style={styles.cancellationPolicyText}>
-              Free Cancellation until: <Text style={{textDecorationLine: 'underline', color: '#111827'}}>{cancellationDeadline}</Text>.
+              {quoteMatches ? quote.policy.text : 'Select your dates to see the cancellation terms.'}
             </Text>
-            <Text style={styles.cancellationPolicyText}>
-              After <Text style={{textDecorationLine: 'underline', color: '#111827'}}>{cancellationDeadline}</Text>: Refund minus first night.
-            </Text>
+            {quoteMatches && quote.policy.free_cancellation_until && <Text style={styles.cancellationPolicyText}>Free cancellation until {new Date(quote.policy.free_cancellation_until).toLocaleString('en-US', { timeZone: 'Africa/Mogadishu' })} (Somalia time).</Text>}
+            {quoteError && <Text style={styles.cancellationPolicyText}>{quoteError}</Text>}
           </View>
 
           {/* Payment Method Section (Visible only when selected) */}
@@ -836,6 +826,10 @@ export default function BookingReview() {
               return;
             }
             
+            if (!quoteMatches) {
+              alert(quoteError || 'Please wait for the latest price and cancellation terms.');
+              return;
+            }
             // STEP D: Finalize Booking
             setSubmitting(true);
             try {
@@ -871,10 +865,13 @@ export default function BookingReview() {
                     check_in_date: checkIn,
                     check_out_date: checkOut,
                     total_price: totalPrice,
+                    expected_total_cents: Math.round(quote.total_price * 100),
+                    expected_policy: quote.policy,
                     payment_status: 'pending', // Manual payment for now
                     payment_provider: paymentMethod.id,
                     guests: adults + children,
                     adults,
+                    children,
                     idempotency_key: bookingKey.current,
                   }
                 ])
@@ -882,21 +879,17 @@ export default function BookingReview() {
 
               if (error) throw error;
               
-              // Navigate to confirmation screen
-              router.replace({
-                pathname: '/(modals)/confirmation',
-                params: {
-                  hotelName: hotelName,
-                  hotelLocation: hotelName,
-                  bookingId: data?.[0]?.id ? `#BKY-${data[0].id.toString().slice(-4)}` : '#BKY-0000',
-                  checkIn: checkIn,
-                  checkOut: checkOut,
-                  adults: adults,
-                  children: children,
-                  hotelAddress: hotelAddress || 'Address not available',
-                }
-              });
-              
+              let savedBooking = data?.[0];
+              if (savedBooking?.payment_status !== 'paid') {
+                await apiFetch(`/v1/bookings/${encodeURIComponent(savedBooking.id)}/payments`, { method: 'POST', body: JSON.stringify({}) });
+                savedBooking = await apiFetch(`/v1/bookings/${encodeURIComponent(savedBooking.id)}`);
+              }
+              if (savedBooking?.payment_status !== 'paid' || savedBooking?.booking_status !== 'confirmed') {
+                alert('Payment is not confirmed yet. Contact Hoysii support for help.');
+                return;
+              }
+              router.replace({ pathname: '/(modals)/confirmation', params: { bookingId: savedBooking.id } });
+
             } catch (error) {
               console.error('Error creating booking:', error);
               if (error.message?.includes('hold expired')) bookingKey.current = `booking-${Date.now()}-${Math.random().toString(36).slice(2)}`;
