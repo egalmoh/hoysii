@@ -5,6 +5,11 @@
   "compatibility_date": "2026-10-27",
   "compatibility_flags": ["nodejs_compat"],
   "placement": { "mode": "smart" },
+  "observability": {
+    "enabled": true,
+    "redact_query_string": true,
+    "logs": { "enabled": true, "invocation_logs": false }
+  },
   "routes": [
     { "pattern": "api.hoysii.com", "custom_domain": true }
   ],

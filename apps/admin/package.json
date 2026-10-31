@@ -1,0 +1,30 @@
+{
+  "name": "hoysii-admin",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build --webpack",
+    "build:cloudflare": "opennextjs-cloudflare build",
+    "deploy:cloudflare": "opennextjs-cloudflare deploy",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@opennextjs/cloudflare": "^1.20.13",
+    "better-auth": "^1.7.14",
+    "lucide-react": "^0.563.0",
+    "next": "^16.4.3",
+    "next-themes": "^0.4.6",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "tailwindcss-animate": "^1.0.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "eslint": "^9",
+    "eslint-config-next": "^16.4.3",
+    "tailwindcss": "^4",
+    "wrangler": "^4.154.0"
+  }
+}

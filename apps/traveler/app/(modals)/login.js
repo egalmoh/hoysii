@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, Pressable, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Image } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -15,6 +15,9 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const DISMISS_THRESHOLD = 40;
+const CODE_REQUESTED_NOTICE = 'Code requested. Email can take a few minutes; check your inbox and spam folder.';
+const CODE_SEND_ERROR = 'We could not send the code right now. Please try again in a moment.';
+const CODE_RATE_LIMIT_ERROR = 'Too many code requests. Wait a minute before trying again. An earlier code may still work.';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -36,15 +39,15 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(null); // 'google' | 'apple' | null
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   
   // Verification state (for email verification)
   const [pendingVerification, setPendingVerification] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
   
-  // 2FA state
-  const [pending2FA, setPending2FA] = useState(false);
-  const [twoFactorCode, setTwoFactorCode] = useState('');
-  const [twoFactorMethod, setTwoFactorMethod] = useState(null);
+  const [recoveryStep, setRecoveryStep] = useState(null); // 'request' | 'reset'
+  const [newPassword, setNewPassword] = useState('');
+  const handledAuthRef = useRef(false);
   
   // Animation
   const translateY = useSharedValue(400);
@@ -68,21 +71,15 @@ export default function LoginScreen() {
   };
 
   const handleSuccessfulAuth = useCallback(async () => {
-      
-      if (authUser) {
+      if (authUser && !handledAuthRef.current) {
+        handledAuthRef.current = true;
         const email = authUser.primaryEmailAddress?.emailAddress;
         const fullName = authUser.fullName;
         const phone = authUser.primaryPhoneNumber?.phoneNumber;
         
-        try {
-          await syncUser({
-            email,
-            full_name: fullName,
-            phone_number: phone
-          });
-        } catch (err) {
-          console.error('Sync error in handleSuccessfulAuth:', err);
-        }
+        // Profile sync must not hold the traveler on the sign-in screen.
+        syncUser({ email, full_name: fullName, phone_number: phone })
+          .catch((err) => console.error('Sync error in handleSuccessfulAuth:', err));
 
         // Check if there are stored OAuth redirect params (from before app reload)
         let savedRedirectTo = redirectTo;
@@ -140,8 +137,6 @@ export default function LoginScreen() {
             router.replace('/(tabs)');
           }
         }, 300); // 300ms delay for auth state to settle
-      } else {
-        console.error('handleSuccessfulAuth: authUser is missing!');
       }
   }, [redirectTo, router, params, authUser, isSignedIn]);
 
@@ -228,12 +223,31 @@ export default function LoginScreen() {
 
   // Sign In Handler
   const handleSignIn = async () => {
-    if (!isSignInLoaded || !email || !password) return;
+    if (!isSignInLoaded || !email.trim() || !password) return;
     setLoading(true);
     setError('');
+    setNotice('');
     try {
-      const { error: authError } = await authClient.signIn.email({ email: email.trim(), password });
-      if (authError) throw new Error(authError.message);
+      const { error: authError } = await authClient.signIn.email({ email: email.trim().toLowerCase(), password });
+      if (authError) {
+        if (authError.status === 429) {
+          setError(CODE_RATE_LIMIT_ERROR);
+          return;
+        }
+        if (authError.code === 'EMAIL_SEND_FAILED') {
+          setVerificationCode('');
+          setPendingVerification(true);
+          setError(CODE_SEND_ERROR);
+          return;
+        }
+        if (authError.code === 'EMAIL_NOT_VERIFIED' || /email not verified/i.test(authError.message || '')) {
+          setVerificationCode('');
+          setPendingVerification(true);
+          setNotice(CODE_REQUESTED_NOTICE);
+          return;
+        }
+        throw new Error(authError.code === 'INVALID_EMAIL_OR_PASSWORD' ? 'Email or password is incorrect.' : authError.message);
+      }
       // The session hook closes this modal once Better Auth has updated it.
     } catch (err) {
       console.error('Sign in error:', err);
@@ -245,20 +259,36 @@ export default function LoginScreen() {
 
   // Sign Up Handler
   const handleSignUp = async () => {
-    if (!isSignUpLoaded || !email || !password) return;
+    if (!isSignUpLoaded || !email.trim() || !password) return;
+    if (password.length < 8) { setError('Use a password of at least 8 characters.'); return; }
     setLoading(true);
     setError('');
+    setNotice('');
     try {
       const { error: authError } = await authClient.signUp.email({
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         password,
         name: `${firstName} ${lastName}`.trim() || email.split('@')[0],
-        callbackURL: '/login',
       });
+      if (authError?.code === 'EMAIL_SEND_FAILED') {
+        // Better Auth has already created the account; allow a safe resend.
+        setVerificationCode('');
+        setPendingVerification(true);
+        setError(CODE_SEND_ERROR);
+        return;
+      }
+      if (authError?.status === 429) {
+        setError(CODE_RATE_LIMIT_ERROR);
+        return;
+      }
       if (authError) throw new Error(authError.message);
-      setPendingVerification(true);
+      // Better Auth returns a generic signup response for an existing email.
+      // Password sign-in distinguishes an already-verified account from one
+      // that actually needs a code, without claiming an email was sent.
+      setMode('signin');
+      await handleSignIn();
     } catch (err) {
-      setError(err.message || 'Failed to sign up. Please try again.');
+      setError(err.message || 'Could not create your account. If you already signed up, switch to Sign in.');
     } finally {
       setLoading(false);
     }
@@ -266,99 +296,108 @@ export default function LoginScreen() {
 
   // Verify Email Handler
   const handleVerifyEmail = async () => {
+    if (!/^\d{6}$/.test(verificationCode.trim())) { setError('Enter the 6-digit code from your email.'); return; }
     setLoading(true);
     setError('');
     try {
-      const { data, error: authError } = await authClient.getSession();
+      const { error: authError } = await authClient.emailOtp.verifyEmail({ email: email.trim().toLowerCase(), otp: verificationCode.trim() });
       if (authError) throw new Error(authError.message);
-      if (!data?.user) setError('Open the verification link in your email, then sign in.');
-      else setPendingVerification(false);
+      setPendingVerification(false);
+      setMode('signin');
+      setVerificationCode('');
+      setNotice('Email verified. Signing you in…');
+      const { data } = await authClient.getSession();
+      if (data?.user) authClient.$store.notify('$sessionSignal');
+      else setNotice('Email verified. Please sign in.');
     } catch (err) {
       console.error('Verification error:', err);
-      setError(err.message || 'Could not verify your session.');
+      setError(err.message || 'The code is invalid or expired. Request a new one.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Verify 2FA Handler
-  const handleVerify2FA = async () => {
-    setError('Two-factor sign-in is not configured yet. Please contact support.');
+  const resendVerification = async () => {
+    setLoading(true);
+    setError('');
+    setNotice('');
+    try {
+      // A successful password sign-in means an earlier email verification already worked.
+      // For an unverified account, Better Auth sends the code on this sign-in attempt.
+      const { error: authError } = await authClient.signIn.email({ email: email.trim().toLowerCase(), password });
+      if (!authError) {
+        setPendingVerification(false);
+        setNotice('Signed in. Opening your account…');
+        return;
+      }
+      if (authError.status === 429) {
+        setError(CODE_RATE_LIMIT_ERROR);
+        return;
+      }
+      if (authError.code === 'EMAIL_SEND_FAILED') {
+        setError(CODE_SEND_ERROR);
+        return;
+      }
+      if (authError.code === 'EMAIL_NOT_VERIFIED' || /email not verified/i.test(authError.message || '')) {
+        setNotice('Code requested again. An earlier code should still work if it has not expired. Email can take a few minutes.');
+        return;
+      }
+      throw new Error(authError.code === 'INVALID_EMAIL_OR_PASSWORD' ? 'Email or password is incorrect. Go back and sign in again.' : authError.message);
+    } catch (err) {
+      setError(err.message || 'Could not resend the code. Please wait a moment and try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const requestPasswordReset = async () => {
+    if (!email.trim()) { setError('Enter your email address first.'); return; }
+    setLoading(true);
+    setError('');
+    setNotice('');
+    try {
+      const { error: authError } = await authClient.emailOtp.requestPasswordReset({ email: email.trim().toLowerCase() });
+      if (authError) throw new Error(authError.message);
+      setVerificationCode('');
+      setRecoveryStep('reset');
+      setNotice('If this email has an account, a reset code was requested. Email can take a few minutes.');
+    } catch (err) {
+      setError(err.message || 'Could not request a reset code.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetPassword = async () => {
+    if (!/^\d{6}$/.test(verificationCode.trim())) { setError('Enter the 6-digit code from your email.'); return; }
+    if (newPassword.length < 8) { setError('Use a password of at least 8 characters.'); return; }
+    setLoading(true);
+    setError('');
+    try {
+      const { error: authError } = await authClient.emailOtp.resetPassword({ email: email.trim().toLowerCase(), otp: verificationCode.trim(), password: newPassword });
+      if (authError) throw new Error(authError.message);
+      setRecoveryStep(null);
+      setMode('signin');
+      setPassword('');
+      setNewPassword('');
+      setVerificationCode('');
+      setNotice('Password updated. Sign in with your new password.');
+    } catch (err) {
+      setError(err.message || 'Could not reset your password. Check the code and try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const switchMode = () => {
     setMode(mode === 'signin' ? 'signup' : 'signin');
     setError('');
+    setNotice('');
     setPendingVerification(false);
-    setPending2FA(false);
-    setTwoFactorCode('');
+    setRecoveryStep(null);
   };
 
-  // Render 2FA verification form
-  if (pending2FA) {
-    return (
-      <GestureHandlerRootView style={styles.root}>
-          <KeyboardAvoidingView 
-            style={styles.container}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          >
-            <Pressable style={styles.backdrop} onPress={handleClose} />
-            
-            <GestureDetector gesture={panGesture}>
-              <Animated.View style={[styles.modalContent, animatedStyle, { paddingBottom: 40 + insets.bottom }]}>
-                <View style={styles.dragHandle} />
-                
-                <Text style={styles.title}>Two-Factor Authentication</Text>
-                <Text style={styles.subtitle}>
-                  {twoFactorMethod === 'totp' 
-                    ? 'Enter the code from your authenticator app'
-                    : 'Enter the verification code sent to your device'}
-                </Text>
-
-                {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-                <View style={styles.inputContainer}>
-                  <Text style={styles.inputLabel}>Verification Code</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Enter code"
-                    placeholderTextColor="#9CA3AF"
-                    value={twoFactorCode}
-                    onChangeText={setTwoFactorCode}
-                    keyboardType="number-pad"
-                    autoFocus
-                    maxLength={6}
-                  />
-                </View>
-
-                <TouchableOpacity
-                  style={[styles.submitButton, loading && styles.submitButtonDisabled]}
-                  onPress={handleVerify2FA}
-                  disabled={loading || !twoFactorCode}
-                >
-                  {loading ? (
-                    <ActivityIndicator color="#FFFFFF" />
-                  ) : (
-                    <Text style={styles.submitButtonText}>Verify</Text>
-                  )}
-                </TouchableOpacity>
-
-                <TouchableOpacity onPress={() => {
-                  setPending2FA(false);
-                  setTwoFactorCode('');
-                  setError('');
-                }} style={styles.switchModeButton}>
-                  <Text style={styles.switchModeText}>Go back</Text>
-                </TouchableOpacity>
-              </Animated.View>
-            </GestureDetector>
-          </KeyboardAvoidingView>
-      </GestureHandlerRootView>
-    );
-  }
-
-  // Render verification form
-  if (pendingVerification) {
+  if (pendingVerification || recoveryStep) {
     return (
       <GestureHandlerRootView style={styles.root}>
         <KeyboardAvoidingView 
@@ -371,26 +410,49 @@ export default function LoginScreen() {
             <Animated.View style={[styles.modalContent, animatedStyle, { paddingBottom: 40 + insets.bottom }]}>
               <View style={styles.dragHandle} />
               
-              <Text style={styles.title}>Verify your email</Text>
+              <Text style={styles.title}>{pendingVerification ? 'Verify your email' : 'Reset your password'}</Text>
               <Text style={styles.subtitle}>
-                We sent a verification link to {email}. Open that link, then sign in.
+                {pendingVerification ? `Enter the 6-digit code requested for ${email}.` : recoveryStep === 'request' ? 'Enter your email and we will send you a reset code.' : `Enter the code sent to ${email}, then choose a new password.`}
               </Text>
 
               {error ? <Text style={styles.errorText}>{error}</Text> : null}
+              {notice ? <Text style={styles.noticeText}>{notice}</Text> : null}
+
+              {recoveryStep === 'request' && <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Email</Text>
+                <TextInput style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" placeholder="you@example.com" />
+              </View>}
+
+              {(pendingVerification || recoveryStep === 'reset') && <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Verification code</Text>
+                <TextInput style={styles.input} value={verificationCode} onChangeText={(value) => setVerificationCode(value.replace(/\D/g, ''))} keyboardType="number-pad" textContentType="oneTimeCode" autoComplete="one-time-code" maxLength={6} placeholder="6-digit code" />
+              </View>}
+
+              {recoveryStep === 'reset' && <View style={[styles.inputContainer, { marginTop: 16 }]}>
+                <Text style={styles.inputLabel}>New password</Text>
+                <TextInput style={styles.input} value={newPassword} onChangeText={setNewPassword} secureTextEntry autoCapitalize="none" autoComplete="new-password" placeholder="At least 8 characters" />
+              </View>}
 
               <TouchableOpacity
                 style={[styles.submitButton, loading && styles.submitButtonDisabled]}
-                onPress={handleVerifyEmail}
-                disabled={loading}
+                onPress={pendingVerification ? handleVerifyEmail : recoveryStep === 'request' ? requestPasswordReset : resetPassword}
+                disabled={loading || (pendingVerification && verificationCode.length !== 6) || (recoveryStep === 'reset' && (verificationCode.length !== 6 || newPassword.length < 8))}
               >
                 {loading ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.submitButtonText}>I opened the link</Text>
+                  <Text style={styles.submitButtonText}>{pendingVerification ? 'Verify email' : recoveryStep === 'request' ? 'Send reset code' : 'Set new password'}</Text>
                 )}
               </TouchableOpacity>
 
-              <TouchableOpacity onPress={() => setPendingVerification(false)} style={styles.switchModeButton}>
+              {pendingVerification && <TouchableOpacity onPress={resendVerification} disabled={loading} style={styles.switchModeButton}>
+                <Text style={styles.switchModeText}>Resend code or sign in</Text>
+              </TouchableOpacity>}
+              {recoveryStep === 'reset' && <TouchableOpacity onPress={requestPasswordReset} disabled={loading} style={styles.switchModeButton}>
+                <Text style={styles.switchModeText}>Send a new reset code</Text>
+              </TouchableOpacity>}
+
+              <TouchableOpacity onPress={() => { setPendingVerification(false); setRecoveryStep(null); setError(''); setNotice(''); }} style={styles.switchModeButton}>
                 <Text style={styles.switchModeText}>Go back</Text>
               </TouchableOpacity>
             </Animated.View>
@@ -422,6 +484,7 @@ export default function LoginScreen() {
             </Text>
 
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            {notice ? <Text style={styles.noticeText}>{notice}</Text> : null}
 
             <ScrollView 
               style={styles.formScrollView}
@@ -534,6 +597,7 @@ export default function LoginScreen() {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
+                  autoComplete="email"
                 />
               </View>
 
@@ -548,6 +612,7 @@ export default function LoginScreen() {
                     onChangeText={setPassword}
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
+                    autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
                   />
                   <TouchableOpacity 
                     style={styles.eyeButton}
@@ -561,6 +626,10 @@ export default function LoginScreen() {
                   </TouchableOpacity>
                 </View>
               </View>
+
+              {mode === 'signin' && <TouchableOpacity onPress={() => { setError(''); setNotice(''); setRecoveryStep('request'); }} style={styles.forgotPasswordButton}>
+                <Text style={styles.switchModeText}>Forgot password?</Text>
+              </TouchableOpacity>}
 
               <TouchableOpacity
                 style={[styles.submitButton, loading && styles.submitButtonDisabled]}
@@ -639,6 +708,13 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: '#EF4444',
+    textAlign: 'center',
+    marginBottom: 16,
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+  },
+  noticeText: {
+    color: '#166534',
     textAlign: 'center',
     marginBottom: 16,
     fontSize: 14,
@@ -764,6 +840,10 @@ const styles = StyleSheet.create({
   switchModeButton: {
     alignItems: 'center',
     paddingVertical: 12,
+  },
+  forgotPasswordButton: {
+    alignSelf: 'flex-end',
+    paddingVertical: 4,
   },
   switchModeText: {
     color: '#489CFC',

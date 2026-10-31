@@ -1,4 +1,5 @@
 import { createAuthClient } from 'better-auth/react';
+import { emailOTPClient } from 'better-auth/client/plugins';
 import { expoClient } from '@better-auth/expo/client';
 import * as SecureStore from 'expo-secure-store';
 import { useMemo } from 'react';
@@ -7,7 +8,7 @@ export const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'https://api.hoysii.c
 
 export const authClient = createAuthClient({
   baseURL: API_URL,
-  plugins: [expoClient({ scheme: 'hoysii', storagePrefix: 'hoysii', storage: SecureStore })],
+  plugins: [expoClient({ scheme: 'hoysii', storagePrefix: 'hoysii', storage: SecureStore }), emailOTPClient()],
 });
 
 function profile(user) {

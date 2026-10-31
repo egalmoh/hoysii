@@ -76,7 +76,9 @@ function stayFilter(url) {
 
 async function currentUser(request, env) {
   const session = await createAuth(env).api.getSession({ headers: request.headers });
-  return session?.user || null;
+  if (!session?.user) return null;
+  const control = await first(db(env), 'SELECT is_blocked FROM traveler_controls WHERE email = ? COLLATE NOCASE', session.user.email);
+  return control?.is_blocked ? null : session.user;
 }
 
 async function requireUser(request, env) {
@@ -293,6 +295,50 @@ function hotelValues(body) {
   };
 }
 
+const deletedEmail = (id) => `deleted+${id}@hoysii.invalid`;
+
+async function managedTraveler(database, id) {
+  if (id.startsWith('invite:')) {
+    const email = id.slice(7);
+    const invite = await first(database, 'SELECT email, invited_at FROM traveler_controls WHERE email = ? COLLATE NOCASE', email);
+    return invite?.invited_at ? { email: invite.email, kind: 'invite' } : null;
+  }
+  const current = await first(database, 'SELECT id, email FROM "user" WHERE id = ?', id);
+  if (current && current.email !== deletedEmail(current.id)) return { ...current, kind: 'user' };
+  const legacy = await first(database, 'SELECT id, email FROM legacy_users WHERE id = ?', id);
+  return legacy && legacy.email !== deletedEmail(legacy.id) ? { ...legacy, kind: 'legacy' } : null;
+}
+
+async function travelerList(database) {
+  const current = await all(database, `SELECT u.id, u.email, COALESCE(p.full_name, u.name) AS full_name, p.phone_number, u.createdAt AS created_at, COALESCE(c.is_blocked, 0) AS is_blocked, 'user' AS source FROM "user" u LEFT JOIN profiles p ON p.user_id = u.id LEFT JOIN traveler_controls c ON c.email = u.email COLLATE NOCASE WHERE u.email NOT LIKE 'deleted+%@hoysii.invalid'`);
+  const legacy = await all(database, `SELECT l.id, l.email, l.full_name, l.phone_number, l.created_at, COALESCE(c.is_blocked, 0) AS is_blocked, 'legacy' AS source FROM legacy_users l LEFT JOIN traveler_controls c ON c.email = l.email COLLATE NOCASE WHERE l.email NOT LIKE 'deleted+%@hoysii.invalid' AND NOT EXISTS (SELECT 1 FROM "user" u WHERE u.email = l.email COLLATE NOCASE)`);
+  const invites = await all(database, `SELECT 'invite:' || c.email AS id, c.email, c.invited_name AS full_name, c.invited_phone AS phone_number, c.invited_at AS created_at, c.is_blocked, 'invited' AS source FROM traveler_controls c WHERE c.invited_at IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "user" u WHERE u.email = c.email COLLATE NOCASE) AND NOT EXISTS (SELECT 1 FROM legacy_users l WHERE l.email = c.email COLLATE NOCASE)`);
+  return [...current, ...legacy, ...invites].map((user) => ({ ...user, is_blocked: Boolean(user.is_blocked) })).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+}
+
+async function deleteTraveler(database, email) {
+  const current = await first(database, 'SELECT id FROM "user" WHERE email = ? COLLATE NOCASE', email);
+  const legacy = await first(database, 'SELECT id FROM legacy_users WHERE email = ? COLLATE NOCASE', email);
+  const statements = [];
+  if (current) {
+    const hasBooking = await first(database, 'SELECT 1 AS found FROM bookings WHERE user_id = ? LIMIT 1', current.id);
+    statements.push(database.prepare('DELETE FROM session WHERE userId = ?').bind(current.id));
+    statements.push(database.prepare('DELETE FROM account WHERE userId = ?').bind(current.id));
+    statements.push(database.prepare('DELETE FROM profiles WHERE user_id = ?').bind(current.id));
+    statements.push(hasBooking
+      ? database.prepare('UPDATE "user" SET email = ?, name = ?, image = NULL, emailVerified = 0, updatedAt = ? WHERE id = ?').bind(deletedEmail(current.id), 'Deleted guest', Date.now(), current.id)
+      : database.prepare('DELETE FROM "user" WHERE id = ?').bind(current.id));
+  }
+  if (legacy) {
+    const hasBooking = await first(database, 'SELECT 1 AS found FROM legacy_bookings WHERE user_id = ? LIMIT 1', legacy.id);
+    statements.push(hasBooking
+      ? database.prepare('UPDATE legacy_users SET email = ?, full_name = ?, phone_number = NULL, clerk_id = ?, role = NULL WHERE id = ?').bind(deletedEmail(legacy.id), 'Deleted guest', `deleted:${legacy.id}`, legacy.id)
+      : database.prepare('DELETE FROM legacy_users WHERE id = ?').bind(legacy.id));
+  }
+  statements.push(database.prepare('DELETE FROM traveler_controls WHERE email = ? COLLATE NOCASE').bind(email));
+  await database.batch(statements);
+}
+
 async function adminRoutes(request, env, url) {
   if (!url.pathname.startsWith('/v1/admin/')) return null;
   const auth = await requireAdmin(request, env);
@@ -304,7 +350,53 @@ async function adminRoutes(request, env, url) {
     return json((await all(database, 'SELECT * FROM hotels ORDER BY created_at DESC')).map(hotel));
   }
   if (request.method === 'GET' && url.pathname === '/v1/admin/users') {
-    return json(await all(database, `SELECT u.id, u.email, u.name, u.createdAt AS created_at, COALESCE(p.full_name, u.name) AS full_name, p.phone_number, 'user' AS role FROM "user" u LEFT JOIN profiles p ON p.user_id = u.id WHERE NOT EXISTS (SELECT 1 FROM legacy_users l WHERE l.email = u.email COLLATE NOCASE) UNION ALL SELECT l.id, l.email, l.full_name AS name, l.created_at, l.full_name, l.phone_number, 'legacy_user' AS role FROM legacy_users l ORDER BY created_at DESC`));
+    return json(await travelerList(database));
+  }
+  if (request.method === 'POST' && url.pathname === '/v1/admin/users') {
+    const body = await request.json().catch(() => ({}));
+    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+    const name = typeof body.full_name === 'string' ? body.full_name.trim() : '';
+    const phone = typeof body.phone_number === 'string' ? body.phone_number.trim() : '';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || !name || name.length > 120 || phone.length > 50) return error('Enter a valid email, name, and optional phone number.');
+    const exists = await first(database, 'SELECT 1 AS found FROM "user" WHERE email = ? COLLATE NOCASE UNION SELECT 1 FROM legacy_users WHERE email = ? COLLATE NOCASE UNION SELECT 1 FROM traveler_controls WHERE email = ? COLLATE NOCASE LIMIT 1', email, email, email);
+    if (exists) return error('This traveler already exists or has an invitation.', 409);
+    await run(database, 'INSERT INTO traveler_controls (email, invited_name, invited_phone, invited_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)', email, name, phone || null);
+    try {
+      await sendAuthEmail(env, email, 'You are invited to Hoysii', `Hoysii has invited you to create a traveler account. Open the Hoysii app and sign up with ${email}. You will choose your own password and verify your email before booking.`);
+    } catch (cause) {
+      await run(database, 'DELETE FROM traveler_controls WHERE email = ? COLLATE NOCASE AND invited_at IS NOT NULL', email);
+      throw cause;
+    }
+    return json({ ok: true, email }, 201);
+  }
+  const userMatch = url.pathname.match(/^\/v1\/admin\/users\/([^/]+)$/);
+  if (userMatch && ['PATCH', 'DELETE'].includes(request.method)) {
+    const target = await managedTraveler(database, decodeURIComponent(userMatch[1]));
+    if (!target) return error('Traveler not found.', 404);
+    if (request.method === 'DELETE') {
+      await deleteTraveler(database, target.email);
+      return json({ ok: true });
+    }
+    const body = await request.json().catch(() => ({}));
+    if (Object.hasOwn(body, 'is_blocked')) {
+      if (typeof body.is_blocked !== 'boolean') return error('Block status must be true or false.');
+      await run(database, 'INSERT INTO traveler_controls (email, is_blocked) VALUES (?, ?) ON CONFLICT(email) DO UPDATE SET is_blocked = excluded.is_blocked, updated_at = CURRENT_TIMESTAMP', target.email, Number(body.is_blocked));
+      if (body.is_blocked) await run(database, 'DELETE FROM session WHERE userId IN (SELECT id FROM "user" WHERE email = ? COLLATE NOCASE)', target.email);
+      return json({ ok: true });
+    }
+    const name = typeof body.full_name === 'string' ? body.full_name.trim() : '';
+    const phone = typeof body.phone_number === 'string' ? body.phone_number.trim() : '';
+    if (!name || name.length > 120 || phone.length > 50) return error('Enter a name and optional phone number.');
+    const current = await first(database, 'SELECT id FROM "user" WHERE email = ? COLLATE NOCASE', target.email);
+    const statements = [];
+    if (current) {
+      statements.push(database.prepare('UPDATE "user" SET name = ?, updatedAt = ? WHERE id = ?').bind(name, Date.now(), current.id));
+      statements.push(database.prepare('INSERT INTO profiles (user_id, full_name, phone_number) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET full_name = excluded.full_name, phone_number = excluded.phone_number, updated_at = CURRENT_TIMESTAMP').bind(current.id, name, phone || null));
+    }
+    statements.push(database.prepare('UPDATE legacy_users SET full_name = ?, phone_number = ? WHERE email = ? COLLATE NOCASE').bind(name, phone || null, target.email));
+    statements.push(database.prepare('UPDATE traveler_controls SET invited_name = ?, invited_phone = ?, updated_at = CURRENT_TIMESTAMP WHERE email = ? COLLATE NOCASE AND invited_at IS NOT NULL').bind(name, phone || null, target.email));
+    await database.batch(statements);
+    return json({ ok: true });
   }
   if (request.method === 'GET' && url.pathname === '/v1/admin/bookings') {
     const current = await all(database, `SELECT b.*, COALESCE(p.full_name, u.name) AS guest_name, p.phone_number, h.name AS hotel_name, r.name AS room_name FROM bookings b JOIN "user" u ON u.id = b.user_id LEFT JOIN profiles p ON p.user_id = u.id JOIN hotels h ON h.id = b.hotel_id JOIN rooms r ON r.id = b.room_id`);
@@ -384,7 +476,21 @@ export default {
         if (url.pathname.startsWith('/api/admin-auth/sign-up/')) return withCors(error('Admin signup is private.', 403), request, env);
         return withCors(await createAdminAuth(env).handler(request), request, env);
       }
-      if (url.pathname.startsWith('/api/auth')) return withCors(await createAuth(env).handler(request), request, env);
+      if (url.pathname.startsWith('/api/auth')) {
+        let emailSendFailure;
+        const auth = createAuth(env, { onEmailSendFailure: (cause) => { emailSendFailure = cause; } });
+        const response = await auth.handler(request);
+        if (emailSendFailure) {
+          console.error('Traveler auth email was not accepted by the email service.', {
+            code: emailSendFailure.code || 'UNKNOWN',
+          });
+          return withCors(json({
+            code: 'EMAIL_SEND_FAILED',
+            message: 'We could not send the email code. Please try again in a moment.',
+          }, 502), request, env);
+        }
+        return withCors(response, request, env);
+      }
       if (url.pathname === '/health') return withCors(json({ ok: true }), request, env);
       const response = await adminSetupRoutes(request, env, url) || await publicRoutes(request, env, url) || await userRoutes(request, env, url) || await adminRoutes(request, env, url) || error('Not found.', 404);
       return withCors(response, request, env);
