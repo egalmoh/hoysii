@@ -149,3 +149,73 @@ test('traveler sign-in reports email service failure and can resend the same cod
     DB.close();
   }
 });
+
+test('hotel manager details are private while authenticated admins retain access', async () => {
+  const DB = localD1();
+  const env = {
+    DB,
+    BETTER_AUTH_URL: 'https://api.hoysii.com',
+    BETTER_AUTH_SECRET: 'traveler-test-secret-at-least-thirty-two-characters',
+    ADMIN_AUTH_SECRET: 'independent-admin-test-secret-at-least-thirty-two-characters',
+    ADMIN_EMAIL: 'admin@example.com',
+    TRUSTED_ORIGINS: 'hoysii://,https://admin.hoysii.com',
+    SEND_EMAIL: { async send() {} },
+  };
+  const request = (path, cookie) => worker.fetch(new Request(`https://api.hoysii.com${path}`, {
+    headers: cookie ? { cookie } : {},
+  }), env);
+  try {
+    await DB.exec(`ALTER TABLE hotels ADD COLUMN internal_note TEXT;
+      INSERT INTO hotels (id, name, city, images, amenities, starting_price_cents, manager_name, manager_email, manager_phone, internal_note)
+      VALUES ('hotel-1', 'Test Hotel', 'Mogadishu', '["https://example.com/hotel.jpg"]', '["WiFi"]', 6000, 'Private Manager', 'manager@example.com', '+252000000000', 'Private operations note');
+      INSERT INTO rooms (id, hotel_id, name, price_cents) VALUES ('room-1', 'hotel-1', 'Double', 6000);`);
+
+    for (const path of ['/v1/hotels', '/v1/hotels?city=Mogadishu&check_in=2026-12-01&check_out=2026-12-03', '/v1/hotels/hotel-1']) {
+      const response = await request(path);
+      assert.equal(response.status, 200);
+      const body = await response.json();
+      const hotel = Array.isArray(body) ? body[0] : body.hotel;
+      assert.equal(hotel.name, 'Test Hotel');
+      assert.equal(hotel.starting_price, 60);
+      assert.deepEqual(hotel.images, ['https://example.com/hotel.jpg']);
+      assert.deepEqual(hotel.amenities, ['WiFi']);
+      for (const field of ['manager_name', 'manager_email', 'manager_phone', 'internal_note']) {
+        assert.equal(Object.hasOwn(hotel, field), false, `${path} must not expose ${field}`);
+      }
+    }
+
+    for (const path of ['/v1/admin/hotels', '/v1/admin/hotels/hotel-1']) {
+      assert.equal((await request(path)).status, 401);
+    }
+
+    const traveler = createAuth(env);
+    await post(traveler, '/api/auth/sign-up/email', { name: 'Traveler', email: 'traveler@example.com', password: 'SecurePass123!' });
+    await DB.prepare('UPDATE "user" SET emailVerified = 1 WHERE email = ?').bind('traveler@example.com').run();
+    const travelerSignin = await post(traveler, '/api/auth/sign-in/email', { email: 'traveler@example.com', password: 'SecurePass123!' });
+    assert.equal(travelerSignin.status, 200);
+    for (const path of ['/v1/admin/hotels', '/v1/admin/hotels/hotel-1']) {
+      assert.equal((await request(path, travelerSignin.cookie.split(';')[0])).status, 401);
+    }
+
+    const admin = createAdminAuth(env);
+    await post(admin, '/api/admin-auth/sign-up/email', { name: 'Admin', email: env.ADMIN_EMAIL, password: 'AdminSecurePass123!' }, 'https://admin.hoysii.com');
+    await DB.prepare('UPDATE admin_user SET emailVerified = 1 WHERE email = ?').bind(env.ADMIN_EMAIL).run();
+    const signin = await post(admin, '/api/admin-auth/sign-in/email', { email: env.ADMIN_EMAIL, password: 'AdminSecurePass123!' }, 'https://admin.hoysii.com');
+    assert.equal(signin.status, 200, JSON.stringify(signin.body));
+    const cookie = signin.cookie.split(';')[0];
+    for (const path of ['/v1/admin/hotels', '/v1/admin/hotels/hotel-1']) {
+      const response = await request(path, cookie);
+      assert.equal(response.status, 200);
+      const body = await response.json();
+      const hotel = Array.isArray(body) ? body[0] : body.hotel;
+      assert.equal(hotel.manager_name, 'Private Manager');
+      assert.equal(hotel.manager_email, 'manager@example.com');
+      assert.equal(hotel.manager_phone, '+252000000000');
+      assert.equal(Object.hasOwn(hotel, 'internal_note'), false);
+      if (!Array.isArray(body)) assert.equal(body.rooms[0].id, 'room-1');
+    }
+    assert.equal((await request('/v1/admin/hotels/missing', cookie)).status, 404);
+  } finally {
+    DB.close();
+  }
+});

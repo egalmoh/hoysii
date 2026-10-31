@@ -30,7 +30,7 @@ class Query {
         if (this.action === 'insert') data = await apiFetch('/v1/admin/hotels', { method: 'POST', body: JSON.stringify(this.payload) })
         else if (this.action === 'update') data = await apiFetch(`/v1/admin/hotels/${encodeURIComponent(this.filters.id)}`, { method: 'PATCH', body: JSON.stringify(this.payload) })
         else if (this.action === 'delete') data = await apiFetch(`/v1/admin/hotels/${encodeURIComponent(this.filters.id)}`, { method: 'DELETE' })
-        else if (this.filters.id) data = (await apiFetch(`/v1/hotels/${encodeURIComponent(this.filters.id)}`)).hotel
+        else if (this.filters.id) data = (await apiFetch(`/v1/admin/hotels/${encodeURIComponent(this.filters.id)}`)).hotel
         else data = await apiFetch('/v1/admin/hotels')
       } else if (this.table === 'rooms') {
         if (this.action === 'insert') data = await apiFetch('/v1/admin/rooms', { method: 'POST', body: JSON.stringify(this.payload) })
