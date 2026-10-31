@@ -14,11 +14,20 @@ function list(value) {
 
 function hotel(row) {
   if (!row) return null;
+  // Public responses must not inherit manager contacts or future internal columns.
   return {
-    ...row, location: row.city, starting_price: dollars(row.starting_price_cents),
+    id: row.id, name: row.name, city: row.city, location: row.city,
+    description: row.description, google_map_link: row.google_map_link,
+    starting_price_cents: row.starting_price_cents, starting_price: dollars(row.starting_price_cents),
     is_verified: Boolean(row.is_verified), address: list(row.address), images: list(row.images),
     amenities: list(row.amenities), payment_methods: list(row.payment_methods), security_features: list(row.security_features),
+    rating: row.rating, created_at: row.created_at, updated_at: row.updated_at,
   };
+}
+
+function adminHotel(row) {
+  if (!row) return null;
+  return { ...hotel(row), manager_name: row.manager_name, manager_email: row.manager_email, manager_phone: row.manager_phone };
 }
 
 function room(row) {
@@ -347,7 +356,7 @@ async function adminRoutes(request, env, url) {
 
   if (request.method === 'GET' && url.pathname === '/v1/admin/session') return json({ user: auth.user });
   if (request.method === 'GET' && url.pathname === '/v1/admin/hotels') {
-    return json((await all(database, 'SELECT * FROM hotels ORDER BY created_at DESC')).map(hotel));
+    return json((await all(database, 'SELECT * FROM hotels ORDER BY created_at DESC')).map(adminHotel));
   }
   if (request.method === 'GET' && url.pathname === '/v1/admin/users') {
     return json(await travelerList(database));
@@ -417,6 +426,12 @@ async function adminRoutes(request, env, url) {
     return json({ id: hotelId }, 201);
   }
   const hotelMatch = url.pathname.match(/^\/v1\/admin\/hotels\/([^/]+)$/);
+  if (hotelMatch && request.method === 'GET') {
+    const property = adminHotel(await first(database, 'SELECT * FROM hotels WHERE id = ?', hotelMatch[1]));
+    if (!property) return error('Hotel not found.', 404);
+    const rooms = await all(database, 'SELECT * FROM rooms WHERE hotel_id = ? ORDER BY price_cents', hotelMatch[1]);
+    return json({ hotel: property, rooms: rooms.map(room) });
+  }
   if (hotelMatch && request.method === 'PATCH') {
     const body = await request.json();
     if (!body.name || !body.city || !validMoney(body.starting_price || 0)) return error('Hotel name, city, and a valid starting price are required.');
