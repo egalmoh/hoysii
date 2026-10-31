@@ -2,6 +2,8 @@
 
 import { useEffect, useState, use } from "react";
 import { api } from "@/lib/api";
+import { HotelPolicyFields } from "@/components/hotel-policy-fields";
+import { RoomInventoryEditor } from "@/components/room-inventory-editor";
 import { ArrowLeft, Save, Trash2, BedDouble, Building2, Loader2, Plus, AlertCircle, CheckCircle, MapPin } from "lucide-react";
 import { ModeToggle } from "@/components/mode-toggle";
 import Link from "next/link";
@@ -116,7 +118,7 @@ export default function HotelEditor({ params }) {
       payload.amenities = ensureArray(hotel.amenities);
       payload.address = ensureArray(hotel.address);
       payload.google_map_link = hotel.google_map_link;
-      payload.starting_price = parseInt(hotel.starting_price);
+      payload.starting_price = Number(hotel.starting_price);
       payload.rating = hotel.rating ? parseFloat(hotel.rating) : null;
 
       const { error } = await api
@@ -328,6 +330,7 @@ export default function HotelEditor({ params }) {
                   />
                 </div>
               </div>
+              <div className="p-6"><HotelPolicyFields value={hotel} onChange={(values) => setHotel((current) => ({ ...current, ...values }))} /></div>
             </section>
           </div>
 
@@ -344,30 +347,13 @@ export default function HotelEditor({ params }) {
 
               <div className="divide-y divide-slate-100 dark:divide-gray-700">
                 {rooms.map((room) => (
-                  <div key={room.id} className="p-4 hover:bg-slate-50 dark:hover:bg-gray-700/50 transition-colors flex items-center justify-between group">
-                    <div>
-                      <h4 className="font-medium text-slate-900 dark:text-white">{room.name}</h4>
-                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex flex-wrap gap-2">
-                        <span>${room.price}</span>
-                        <span>•</span>
-                        <span>{room.capacity_adults} Adults</span>
-                        <span>•</span>
-                        <span>{room.total_units || 1} Units</span>
-                        {room.bed_size && (
-                          <>
-                             <span>•</span>
-                             <span>{room.bed_size}</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => handleDeleteRoom(room.id)}
-                      className="text-slate-400 hover:text-red-600 p-2 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors opacity-0 group-hover:opacity-100"
-                      title="Delete Room"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                  <div key={room.id}>
+                    <RoomInventoryEditor room={room} onSaved={async () => {
+                      const { data, error } = await api.from('rooms').select().eq('hotel_id', id);
+                      if (error) throw error;
+                      setRooms(data || []);
+                    }} />
+                    <button onClick={() => handleDeleteRoom(room.id)} className="m-4 rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600">Delete room type</button>
                   </div>
                 ))}
                 {rooms.length === 0 && (

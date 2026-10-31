@@ -1,6 +1,8 @@
 import { createAdminAuth, createAuth, sendAuthEmail } from './auth.js';
 import { all, db, first, run } from './db.js';
-import { ACTIVE_BOOKING_FILTER, INSERT_BOOKING_SQL, addDays, citySearchTerms, PAYMENT_HOLD_MINUTES, roomAvailable, unavailableDates } from './availability.js';
+import { ACTIVE_BOOKING_FILTER, addDays, citySearchTerms, roomAvailable, unavailableDates } from './availability.js';
+import { createBooking, policyFor, policyUpdate, travelerBooking, validRange, validatePolicy } from './booking-service.js';
+import { adminOperations, processJobs, travelerOperations } from './operations.js';
 
 const json = (body, status = 200) => Response.json(body, { status });
 const cents = (value) => Math.round(Number(value) * 100);
@@ -22,6 +24,9 @@ function hotel(row) {
     is_verified: Boolean(row.is_verified), address: list(row.address), images: list(row.images),
     amenities: list(row.amenities), payment_methods: list(row.payment_methods), security_features: list(row.security_features),
     rating: row.rating, created_at: row.created_at, updated_at: row.updated_at,
+    check_in_time: row.check_in_time, check_out_time: row.check_out_time,
+    cancellation_policy: row.cancellation_policy, free_cancellation_hours: row.free_cancellation_hours,
+    cancellation_penalty_percent: row.cancellation_penalty_percent,
   };
 }
 
@@ -35,11 +40,12 @@ function room(row) {
   return { ...row, price: dollars(row.price_cents), amenities: list(row.amenities), images: list(row.images) };
 }
 
-function booking(row) {
+function booking(row, internal = false) {
   if (!row) return null;
-  const result = { ...row, total_price: dollars(row.total_cents) };
-  if (row.hotel_name) result.hotels = hotel({ id: row.hotel_id, name: row.hotel_name, city: row.hotel_city, address: row.hotel_address, images: row.hotel_images, starting_price_cents: row.hotel_starting_price_cents });
-  if (row.room_name) result.rooms = room({ id: row.room_id, name: row.room_name, price_cents: row.room_price_cents, images: row.room_images });
+  const result = row.reference ? travelerBooking(row) : { ...row, total_price: dollars(row.total_cents) };
+  if (!result.hotels && row.hotel_name) result.hotels = hotel({ id: row.hotel_id, name: row.hotel_name, city: row.hotel_city, address: row.hotel_address, images: row.hotel_images, starting_price_cents: row.hotel_starting_price_cents });
+  if (!result.rooms && row.room_name) result.rooms = room({ id: row.room_id, name: row.room_name, price_cents: row.room_price_cents, images: row.room_images });
+  if (internal) Object.assign(result, { internal_status: row.booking_status, hotel_ack_status: row.hotel_ack_status, hotel_ack_due_at: row.hotel_ack_due_at, transaction_reference: row.transaction_reference });
   if (row.guest_name) result.users = { full_name: row.guest_name, phone_number: row.phone_number };
   return result;
 }
@@ -58,6 +64,7 @@ function cors(request, env) {
 
 function withCors(response, request, env) {
   const headers = new Headers(response.headers);
+  if (!headers.has('Cache-Control')) headers.set('Cache-Control', 'private, no-store');
   for (const [key, value] of Object.entries(cors(request, env))) headers.set(key, value);
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
@@ -70,9 +77,17 @@ function validDate(value) {
 }
 function validStay(start, end) { return validDate(start) && validDate(end) && start < end; }
 function validMoney(value) { return Number.isFinite(Number(value)) && cents(value) >= 0; }
+function validRoom(item) {
+  const units = Number(item.total_units ?? 1);
+  const adults = Number(item.capacity_adults ?? 2);
+  return typeof item.name === 'string' && item.name.trim() && item.name.length <= 120 && validMoney(item.price)
+    && cents(item.price) > 0 && Number.isSafeInteger(cents(item.price))
+    && Number.isInteger(units) && units >= 1 && units <= 10000 && Number.isInteger(adults) && adults >= 1 && adults <= 20;
+}
 
 async function overlappingBookings(database, start, end) {
-  return all(database, `SELECT b.room_id, b.check_in_date, b.check_out_date FROM bookings b WHERE b.check_in_date < ? AND b.check_out_date > ? AND ${ACTIVE_BOOKING_FILTER}`, end, start);
+  return all(database, `SELECT b.room_id, b.check_in_date, b.check_out_date, 1 AS units FROM bookings b WHERE b.check_in_date < ? AND b.check_out_date > ? AND ${ACTIVE_BOOKING_FILTER}
+    UNION ALL SELECT room_id,start_date AS check_in_date,end_date AS check_out_date,units FROM inventory_blocks WHERE start_date < ? AND end_date > ?`, end, start, end, start);
 }
 
 function stayFilter(url) {
@@ -170,8 +185,13 @@ async function publicRoutes(request, env, url) {
       if (!Number.isInteger(adults) || adults < 1 || adults > 20) return error('Guest count is invalid.');
       const rooms = await all(database, 'SELECT * FROM rooms WHERE capacity_adults >= ?', adults);
       const bookings = await overlappingBookings(database, stay.dates.checkIn, stay.dates.checkOut);
-      const availableHotels = new Set(rooms.filter((item) => roomAvailable(item, bookings, stay.dates.checkIn, stay.dates.checkOut)).map((item) => item.hotel_id));
-      records = records.filter((item) => availableHotels.has(item.id));
+      const availableRooms = rooms.filter((item) => roomAvailable(item, bookings, stay.dates.checkIn, stay.dates.checkOut));
+      const availableHotels = new Set(availableRooms.map((item) => item.hotel_id));
+      records = records.filter((item) => availableHotels.has(item.id)).map((item) => ({ ...item, starting_price_cents: Math.min(...availableRooms.filter((room) => room.hotel_id === item.id).map((room) => room.price_cents)) }));
+    } else {
+      const rates = await all(database, 'SELECT hotel_id,MIN(price_cents) AS price FROM rooms GROUP BY hotel_id');
+      const prices = new Map(rates.map((rate) => [rate.hotel_id, rate.price]));
+      records = records.map((item) => ({ ...item, starting_price_cents: prices.get(item.id) ?? item.starting_price_cents }));
     }
     return json(records.map(hotel));
   }
@@ -221,6 +241,20 @@ async function publicRoutes(request, env, url) {
     return json({ available: roomAvailable(selected, bookings, stay.dates.checkIn, stay.dates.checkOut) });
   }
 
+  const quoteMatch = url.pathname.match(/^\/v1\/rooms\/([^/]+)\/quote$/);
+  if (request.method === 'GET' && quoteMatch) {
+    const checkIn = url.searchParams.get('check_in');
+    const checkOut = url.searchParams.get('check_out');
+    if (!validRange(checkIn, checkOut)) return error('Choose valid stay dates.');
+    const selected = await first(database, 'SELECT * FROM rooms WHERE id=?', quoteMatch[1]);
+    if (!selected) return error('Room not found.', 404);
+    const property = await first(database, 'SELECT * FROM hotels WHERE id=?', selected.hotel_id);
+    const nights = (Date.parse(checkOut) - Date.parse(checkIn)) / 86400000;
+    const base = selected.price_cents * nights;
+    const fee = Math.round(base * 0.1);
+    return json({ check_in_date: checkIn, check_out_date: checkOut, nightly_rate: selected.price_cents / 100, nights, base_price: base / 100, service_fee: fee / 100, total_price: (base + fee) / 100, currency: 'USD', policy: policyFor(property, checkIn) });
+  }
+
   const mediaMatch = url.pathname.match(/^\/v1\/media\/(hotels\/[a-f0-9-]+\.(?:jpg|png|webp|avif))$/);
   if (request.method === 'GET' && mediaMatch) {
     if (!env.HOTEL_MEDIA) return error('Media storage is unavailable.', 503);
@@ -235,10 +269,12 @@ async function publicRoutes(request, env, url) {
 }
 
 async function userRoutes(request, env, url) {
-  if (!['/v1/me', '/v1/trips', '/v1/bookings'].includes(url.pathname)) return null;
+  if (!['/v1/me', '/v1/trips', '/v1/bookings'].includes(url.pathname) && !url.pathname.startsWith('/v1/bookings/')) return null;
   const auth = await requireUser(request, env);
   if (auth.response) return auth.response;
   const database = db(env);
+  const operation = await travelerOperations(request, env, url, auth.user);
+  if (operation) return operation;
 
   if (request.method === 'GET' && url.pathname === '/v1/me') {
     const profile = await first(database, 'SELECT full_name, phone_number FROM profiles WHERE user_id = ?', auth.user.id);
@@ -252,43 +288,17 @@ async function userRoutes(request, env, url) {
     return json({ ok: true });
   }
   if (request.method === 'GET' && url.pathname === '/v1/trips') {
-    const records = await all(database, `SELECT b.*, h.name AS hotel_name, h.city AS hotel_city, h.address AS hotel_address, h.images AS hotel_images, h.starting_price_cents AS hotel_starting_price_cents, r.name AS room_name, r.price_cents AS room_price_cents, r.images AS room_images FROM bookings b JOIN hotels h ON h.id = b.hotel_id JOIN rooms r ON r.id = b.room_id WHERE b.user_id = ?`, auth.user.id);
+    const records = await all(database, `SELECT b.*, rf.status AS refund_status, rf.amount_cents AS refund_amount_cents, h.name AS hotel_name, h.city AS hotel_city, h.address AS hotel_address, h.images AS hotel_images, h.starting_price_cents AS hotel_starting_price_cents, r.name AS room_name, r.price_cents AS room_price_cents, r.images AS room_images FROM bookings b JOIN hotels h ON h.id = b.hotel_id JOIN rooms r ON r.id = b.room_id LEFT JOIN refunds rf ON rf.booking_id=b.id WHERE b.user_id = ?`, auth.user.id);
     const legacy = auth.user.emailVerified
       ? await all(database, `SELECT b.*, h.name AS hotel_name, h.city AS hotel_city, h.address AS hotel_address, h.images AS hotel_images, h.starting_price_cents AS hotel_starting_price_cents, r.name AS room_name, r.price_cents AS room_price_cents, r.images AS room_images FROM legacy_bookings b JOIN legacy_users u ON u.id = b.user_id JOIN hotels h ON h.id = b.hotel_id JOIN rooms r ON r.id = b.room_id WHERE u.email = ? COLLATE NOCASE`, auth.user.email)
       : [];
-    return json([...records, ...legacy].sort((a, b) => b.created_at.localeCompare(a.created_at)).map(booking));
+    return json([...records, ...legacy].sort((a, b) => b.created_at.localeCompare(a.created_at)).map((item) => booking(item)));
   }
   if (request.method === 'POST' && url.pathname === '/v1/bookings') {
     const body = await request.json();
-    if (!body.room_id || !validStay(body.check_in_date, body.check_out_date) || (Date.parse(`${body.check_out_date}T00:00:00Z`) - Date.parse(`${body.check_in_date}T00:00:00Z`)) / 86400000 > 365) return error('Choose a room and valid stay dates within one year.');
-    const guests = Number(body.guests || 1);
-    if (!Number.isInteger(guests) || guests < 1 || guests > 20) return error('Guest count is invalid.');
-    const key = request.headers.get('X-Idempotency-Key') || body.idempotency_key;
-    if (!key || typeof key !== 'string' || key.length > 100) return error('An idempotency key is required.');
-    const existing = await first(database, 'SELECT * FROM bookings WHERE idempotency_key = ? AND user_id = ?', key, auth.user.id);
-    if (existing) {
-      if (existing.booking_status === 'payment_pending' && existing.payment_status === 'pending') {
-        const hold = await first(database, `SELECT datetime(?) <= datetime('now', '-${PAYMENT_HOLD_MINUTES} minutes') AS expired`, existing.created_at);
-        if (hold?.expired) return error('This unpaid room hold expired. Please try booking again.', 409);
-      }
-      return json(booking(existing));
-    }
-    const selected = await first(database, 'SELECT * FROM rooms WHERE id = ?', body.room_id);
-    if (!selected) return error('Room not found.', 404);
-    if (Number(body.adults || guests) > selected.capacity_adults) return error('This room cannot accommodate that many adults.');
-    const nights = Math.round((Date.parse(`${body.check_out_date}T00:00:00Z`) - Date.parse(`${body.check_in_date}T00:00:00Z`)) / 86400000);
-    const total = selected.price_cents * nights;
-    const bookingId = crypto.randomUUID();
-    try {
-      const result = await run(database, INSERT_BOOKING_SQL, body.check_in_date, body.check_out_date, bookingId, auth.user.id, body.check_in_date, body.check_out_date, guests, total, body.payment_provider || null, key, body.room_id);
-      if (!result.meta?.changes) return error('This room is no longer available for those dates.', 409);
-    } catch (cause) {
-      const retry = await first(database, 'SELECT * FROM bookings WHERE idempotency_key = ? AND user_id = ?', key, auth.user.id);
-      if (retry) return json(booking(retry));
-      throw cause;
-    }
-    return json({ id: bookingId, total_price: dollars(total), payment_status: 'pending', booking_status: 'payment_pending' }, 201);
+    return json(await createBooking(env, auth.user, body, request.headers.get('X-Idempotency-Key') || body.idempotency_key), 201);
   }
+
   return null;
 }
 
@@ -355,6 +365,13 @@ async function adminRoutes(request, env, url) {
   const database = db(env);
 
   if (request.method === 'GET' && url.pathname === '/v1/admin/session') return json({ user: auth.user });
+  if (!['GET', 'HEAD'].includes(request.method)) {
+    const origin = request.headers.get('origin');
+    const adminOrigins = (env.TRUSTED_ORIGINS || '').split(',').map((value) => value.trim()).filter((value) => value.startsWith('https://admin.') || value.startsWith('http://localhost:'));
+    if (!origin || !adminOrigins.includes(origin)) return error('A trusted admin origin is required.', 403);
+  }
+  const operation = await adminOperations(request, env, url, auth.user);
+  if (operation) return operation;
   if (request.method === 'GET' && url.pathname === '/v1/admin/hotels') {
     return json((await all(database, 'SELECT * FROM hotels ORDER BY created_at DESC')).map(adminHotel));
   }
@@ -410,18 +427,20 @@ async function adminRoutes(request, env, url) {
   if (request.method === 'GET' && url.pathname === '/v1/admin/bookings') {
     const current = await all(database, `SELECT b.*, COALESCE(p.full_name, u.name) AS guest_name, p.phone_number, h.name AS hotel_name, r.name AS room_name FROM bookings b JOIN "user" u ON u.id = b.user_id LEFT JOIN profiles p ON p.user_id = u.id JOIN hotels h ON h.id = b.hotel_id JOIN rooms r ON r.id = b.room_id`);
     const legacy = await all(database, `SELECT b.*, u.full_name AS guest_name, u.phone_number, h.name AS hotel_name, r.name AS room_name FROM legacy_bookings b JOIN legacy_users u ON u.id = b.user_id JOIN hotels h ON h.id = b.hotel_id JOIN rooms r ON r.id = b.room_id`);
-    return json([...current, ...legacy].sort((a, b) => b.created_at.localeCompare(a.created_at)).map(booking));
+    return json([...current, ...legacy].sort((a, b) => b.created_at.localeCompare(a.created_at)).map((item) => booking(item, true)));
   }
   if (request.method === 'POST' && url.pathname === '/v1/admin/hotels') {
     const body = await request.json();
     if (!body.name || !body.city || !validMoney(body.starting_price || 0)) return error('Hotel name, city, and a valid starting price are required.');
     const item = hotelValues(body);
+    const policy = validatePolicy(body);
     const hotelId = body.id || crypto.randomUUID();
     const statements = [database.prepare(`INSERT INTO hotels (id, name, city, address, google_map_link, description, starting_price_cents, images, amenities, manager_phone, manager_email, manager_name, is_verified, rating, payment_methods, security_features) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(hotelId, ...Object.values(item))];
     for (const roomBody of body.rooms || []) {
-      if (!roomBody.name || !validMoney(roomBody.price)) return error('Each room needs a name and valid price.');
+      if (!validRoom(roomBody)) return error('Each room needs a name, positive rate, valid guest capacity, and room quantity.');
       statements.push(database.prepare(`INSERT INTO rooms (id, hotel_id, name, price_cents, amenities, images, capacity_adults, bed_size, total_units) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(roomBody.id || crypto.randomUUID(), hotelId, roomBody.name, cents(roomBody.price), JSON.stringify(list(roomBody.amenities)), JSON.stringify(list(roomBody.images)), Number(roomBody.capacity_adults) || 2, roomBody.bed_size || null, Number(roomBody.total_units) || 1));
     }
+    statements.push(policyUpdate(database, hotelId, policy));
     await database.batch(statements);
     return json({ id: hotelId }, 201);
   }
@@ -435,9 +454,15 @@ async function adminRoutes(request, env, url) {
   if (hotelMatch && request.method === 'PATCH') {
     const body = await request.json();
     if (!body.name || !body.city || !validMoney(body.starting_price || 0)) return error('Hotel name, city, and a valid starting price are required.');
-    const item = hotelValues(body);
-    const result = await run(database, `UPDATE hotels SET name=?, city=?, address=?, google_map_link=?, description=?, starting_price_cents=?, images=?, amenities=?, manager_phone=?, manager_email=?, manager_name=?, is_verified=?, rating=?, payment_methods=?, security_features=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`, ...Object.values(item), hotelMatch[1]);
-    return result.meta?.changes ? json({ ok: true }) : error('Hotel not found.', 404);
+    const current = await first(database, 'SELECT * FROM hotels WHERE id=?', hotelMatch[1]);
+    if (!current) return error('Hotel not found.', 404);
+    const item = hotelValues({ ...current, ...body });
+    const policy = validatePolicy(body, current);
+    await database.batch([
+      database.prepare(`UPDATE hotels SET name=?, city=?, address=?, google_map_link=?, description=?, starting_price_cents=?, images=?, amenities=?, manager_phone=?, manager_email=?, manager_name=?, is_verified=?, rating=?, payment_methods=?, security_features=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`).bind(...Object.values(item), hotelMatch[1]),
+      policyUpdate(database, hotelMatch[1], policy),
+    ]);
+    return json({ ok: true });
   }
   if (hotelMatch && request.method === 'DELETE') {
     const result = await run(database, 'DELETE FROM hotels WHERE id = ?', hotelMatch[1]);
@@ -446,7 +471,7 @@ async function adminRoutes(request, env, url) {
   if (request.method === 'POST' && url.pathname === '/v1/admin/rooms') {
     const body = await request.json();
     const items = Array.isArray(body) ? body : [body];
-    if (!items.length || items.some((item) => !item.hotel_id || !item.name || !validMoney(item.price))) return error('Each room needs a hotel, name, and valid price.');
+    if (!items.length || items.some((item) => !item.hotel_id || !validRoom(item))) return error('Each room needs a hotel, name, positive rate, valid guest capacity, and room quantity.');
     const statements = items.map((item) => database.prepare(`INSERT INTO rooms (id, hotel_id, name, price_cents, amenities, images, capacity_adults, bed_size, total_units) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(crypto.randomUUID(), item.hotel_id, item.name, cents(item.price), JSON.stringify(list(item.amenities)), JSON.stringify(list(item.images)), Number(item.capacity_adults) || 2, item.bed_size || null, Number(item.total_units) || 1));
     await database.batch(statements);
     return json({ ok: true }, 201);
@@ -455,19 +480,6 @@ async function adminRoutes(request, env, url) {
   if (roomMatch && request.method === 'DELETE') {
     const result = await run(database, 'DELETE FROM rooms WHERE id = ?', roomMatch[1]);
     return result.meta?.changes ? json({ ok: true }) : error('Room not found.', 404);
-  }
-  const bookingMatch = url.pathname.match(/^\/v1\/admin\/bookings\/([^/]+)\/payment$/);
-  if (bookingMatch && request.method === 'PATCH') {
-    const body = await request.json();
-    if (!['paid', 'pending', 'refunded'].includes(body.payment_status)) return error('Invalid payment status.');
-    const existing = await first(database, 'SELECT booking_status, payment_status, created_at FROM bookings WHERE id = ?', bookingMatch[1]);
-    if (!existing) return error('Booking not found.', 404);
-    if (body.payment_status === 'paid' && existing.booking_status === 'payment_pending' && existing.payment_status === 'pending') {
-      const holdExpired = await first(database, `SELECT datetime(?) <= datetime('now', '-${PAYMENT_HOLD_MINUTES} minutes') AS expired`, existing.created_at);
-      if (holdExpired?.expired) return error('The unpaid room hold expired. Recheck availability before recording payment.', 409);
-    }
-    const result = await run(database, `UPDATE bookings SET payment_status = ?, booking_status = CASE WHEN ? = 'paid' THEN 'hotel_confirmation_pending' ELSE booking_status END, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND (? != 'paid' OR booking_status != 'payment_pending' OR payment_status != 'pending' OR created_at > datetime('now', '-${PAYMENT_HOLD_MINUTES} minutes'))`, body.payment_status, body.payment_status, bookingMatch[1], body.payment_status);
-    return result.meta?.changes ? json({ ok: true }) : error('The unpaid room hold expired. Recheck availability before recording payment.', 409);
   }
   if (request.method === 'POST' && url.pathname === '/v1/admin/media') {
     if (!env.HOTEL_MEDIA) return error('R2 HOTEL_MEDIA binding is not configured.', 503);
@@ -510,8 +522,16 @@ export default {
       const response = await adminSetupRoutes(request, env, url) || await publicRoutes(request, env, url) || await userRoutes(request, env, url) || await adminRoutes(request, env, url) || error('Not found.', 404);
       return withCors(response, request, env);
     } catch (cause) {
+      if (/NOT NULL constraint failed: booking_activity.note/.test(cause.message || '')) return withCors(error('This booking changed. Refresh it before trying again.', 409), request, env);
+      if (/inventory_conflict/.test(cause.message || '')) return withCors(error('This change conflicts with reserved rooms or closed dates.', 409), request, env);
+      if (cause.status) return withCors(json({ error: cause.message, ...(cause.code ? { code: cause.code } : {}) }, cause.status), request, env);
+      if (/UNIQUE constraint/.test(cause.message || '')) return withCors(error('This transaction or request was already recorded.', 409), request, env);
+      if (cause instanceof SyntaxError) return withCors(error('Send a valid JSON request.', 400), request, env);
       console.error(cause);
       return withCors(error('Request failed.', 500), request, env);
     }
+  },
+  async scheduled(event, env) {
+    await processJobs(env);
   },
 };

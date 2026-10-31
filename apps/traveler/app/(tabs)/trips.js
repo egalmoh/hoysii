@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useAuth } from '../../lib/auth';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import { api } from '../../lib/api';
+import { api, apiFetch } from '../../lib/api';
 
 const SUPPORT_WHATSAPP_NUMBER = '+252907275534';
 
@@ -31,21 +31,15 @@ function nightsBetween(checkIn, checkOut) {
 function displayPrice(value) {
   const amount = Number(value);
   return Number.isFinite(amount)
-    ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amount)
+    ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(amount)
     : '—';
 }
 
-function referenceFor(id) {
+function referenceFor(booking) {
+  if (booking.reference) return booking.reference;
+  const id = booking.id;
   const sanitized = String(id || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
   return `HYS-${(sanitized || '0000').slice(-8)}`;
-}
-
-function cancellationDeadline(checkIn) {
-  const date = localDate(checkIn);
-  if (!date) return '24 hours before check-in';
-  date.setDate(date.getDate() - 1);
-  date.setHours(14, 0, 0, 0);
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 function guestsFor(booking) {
@@ -54,7 +48,7 @@ function guestsFor(booking) {
   const guests = [];
   if (Number.isFinite(adults) && adults > 0) guests.push(`${adults} adult${adults === 1 ? '' : 's'}`);
   if (Number.isFinite(children) && children > 0) guests.push(`${children} child${children === 1 ? '' : 'ren'}`);
-  return guests.length ? guests.join(' · ') : 'Guest details unavailable';
+  return guests.length ? guests.join(' · ') : booking.guests ? `${booking.guests} guest${booking.guests === 1 ? '' : 's'}` : 'Guest details unavailable';
 }
 
 function SectionHeading({ icon, title }) {
@@ -78,7 +72,7 @@ function BookingReferenceModal({ booking, visible, onClose }) {
           <View style={styles.modalHandle} />
           <View style={styles.modalIcon}><Feather name="hash" size={22} color="#489CFC" /></View>
           <Text style={styles.modalTitle}>Booking reference</Text>
-          <Text style={styles.referenceCode}>{referenceFor(booking.id)}</Text>
+          <Text style={styles.referenceCode}>{referenceFor(booking)}</Text>
           <Text style={styles.modalDescription}>Share this reference whenever you contact Hoysii about this stay.</Text>
           <TouchableOpacity style={styles.modalButton} onPress={onClose} activeOpacity={0.8}><Text style={styles.modalButtonText}>Done</Text></TouchableOpacity>
         </Pressable>
@@ -88,19 +82,29 @@ function BookingReferenceModal({ booking, visible, onClose }) {
 }
 
 function ReceiptModal({ booking, visible, onClose }) {
+  const [receipt, setReceipt] = useState(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let active = true;
+    apiFetch(`/v1/bookings/${encodeURIComponent(booking.id)}/receipt`).then((data) => { if (active) setReceipt(data); }).catch((error) => { if (active) setError(error.message); });
+    return () => { active = false; };
+  }, [booking.id]);
   return (
     <Modal transparent visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.modalBackdrop}>
         <View style={styles.receiptModal}>
           <View style={styles.modalHandle} />
           <View style={styles.receiptTopRow}>
-            <View><Text style={styles.modalTitle}>Payment receipt</Text><Text style={styles.receiptReference}>{referenceFor(booking.id)}</Text></View>
+            <View><Text style={styles.modalTitle}>Payment receipt</Text><Text style={styles.receiptReference}>{referenceFor(booking)}</Text></View>
             <TouchableOpacity style={styles.closeButton} onPress={onClose} accessibilityLabel="Close receipt"><Feather name="x" size={20} color="#111827" /></TouchableOpacity>
           </View>
           <View style={styles.receiptDivider} />
           <View style={styles.receiptRow}><Text style={styles.receiptLabel}>Stay</Text><Text style={styles.receiptValue}>{booking.hotels?.name || 'Hotel'}</Text></View>
           <View style={styles.receiptRow}><Text style={styles.receiptLabel}>Dates</Text><Text style={styles.receiptValue}>{displayDate(booking.check_in_date)} – {displayDate(booking.check_out_date)}</Text></View>
-          <View style={styles.receiptRow}><Text style={styles.receiptLabel}>Total paid</Text><Text style={styles.receiptTotal}>{displayPrice(booking.total_price)}</Text></View>
+          {error ? <Text style={styles.modalDescription}>{error}</Text> : !receipt ? <ActivityIndicator color="#489CFC" /> : <>
+          <View style={styles.receiptRow}><Text style={styles.receiptLabel}>Total paid</Text><Text style={styles.receiptTotal}>{displayPrice(receipt.amount_cents / 100)}</Text></View>
+          <View style={styles.receiptRow}><Text style={styles.receiptLabel}>Transaction</Text><Text style={styles.receiptValue}>{receipt.transaction_reference}</Text></View>
+          </>}
           <TouchableOpacity style={styles.modalButton} onPress={onClose} activeOpacity={0.8}><Text style={styles.modalButtonText}>Close receipt</Text></TouchableOpacity>
         </View>
       </View>
@@ -108,20 +112,21 @@ function ReceiptModal({ booking, visible, onClose }) {
   );
 }
 
-function UpcomingStay({ booking, onReferencePress, onReceiptPress }) {
-  const router = useRouter();
+function UpcomingStay({ booking, onReferencePress, onReceiptPress, onPolicyPress }) {
+  const paid = ['paid', 'partially_refunded'].includes(booking.payment_status);
+  const status = ['cancelled', 'refunded', 'expired'].includes(booking.booking_status) ? booking.booking_status : paid ? 'Booking confirmed' : 'Payment pending';
   const hotel = booking.hotels || {};
   const room = booking.rooms || {};
   const hotelImage = room.images?.[0] || hotel.images?.[0];
-  const hotelAddress = hotel.address || hotel.location || hotel.city || 'Address available from Hoysii support';
+  const hotelAddress = (Array.isArray(hotel.address) ? hotel.address.join(', ') : hotel.address) || hotel.location || hotel.city || 'Address available from Hoysii support';
   const nights = nightsBetween(booking.check_in_date, booking.check_out_date);
-  const supportMessage = encodeURIComponent(`Hello Hoysii, I need help with booking ${referenceFor(booking.id)}.`);
+  const supportMessage = encodeURIComponent(`Hello Hoysii, I need help with booking ${referenceFor(booking)}.`);
 
   const openSupport = () => Linking.openURL(`https://wa.me/${SUPPORT_WHATSAPP_NUMBER.replace(/[^0-9]/g, '')}?text=${supportMessage}`);
 
   return (
     <View style={styles.stayCard}>
-      <View style={styles.confirmedPill}><MaterialCommunityIcons name="check-circle" size={17} color="#15803D" /><Text style={styles.confirmedText}>Booking confirmed</Text></View>
+      <View style={styles.confirmedPill}><MaterialCommunityIcons name="check-circle" size={17} color="#15803D" /><Text style={styles.confirmedText}>{status}</Text></View>
       <TouchableOpacity style={styles.referenceButton} onPress={onReferencePress} activeOpacity={0.75}><Text style={styles.referenceButtonText}>View booking reference</Text><Feather name="chevron-right" size={17} color="#489CFC" /></TouchableOpacity>
 
       <View style={styles.hotelOverview}>
@@ -134,8 +139,8 @@ function UpcomingStay({ booking, onReferencePress, onReceiptPress }) {
       </View>
 
       <View style={styles.detailsCard}>
-        <DetailRow icon="log-in" label="Check-in" value={`${displayDate(booking.check_in_date)}, 2:00 PM`} />
-        <DetailRow icon="log-out" label="Check-out" value={`${displayDate(booking.check_out_date)}, 12:00 PM`} />
+        <DetailRow icon="log-in" label="Check-in" value={`${displayDate(booking.check_in_date)}, ${booking.policy?.check_in_time || 'Time to be confirmed'}`}  />
+        <DetailRow icon="log-out" label="Check-out" value={`${displayDate(booking.check_out_date)}, ${booking.policy?.check_out_time || 'Time to be confirmed'}`}  />
         <DetailRow icon="moon" label="Your stay" value={`${nights || '—'} night${nights === 1 ? '' : 's'} · ${guestsFor(booking)}`} last />
       </View>
 
@@ -148,15 +153,15 @@ function UpcomingStay({ booking, onReferencePress, onReceiptPress }) {
       </View>
 
       <View style={styles.sectionDivider} />
-      <TouchableOpacity style={styles.paymentRow} onPress={onReceiptPress} activeOpacity={0.75}>
-        <View style={styles.paymentCopy}><Text style={styles.paymentLabel}>Total paid</Text><Text style={styles.paymentValue}>{displayPrice(booking.total_price)}</Text></View>
-        <View style={styles.paymentAction}><Text style={styles.paymentActionText}>View receipt</Text><Feather name="chevron-right" size={17} color="#489CFC" /></View>
+      <TouchableOpacity style={styles.paymentRow} onPress={onReceiptPress} disabled={!paid} activeOpacity={0.75}>
+        <View style={styles.paymentCopy}><Text style={styles.paymentLabel}>{paid ? 'Total paid' : booking.payment_status === 'refunded' ? 'Total refunded' : 'Total due'}</Text><Text style={styles.paymentValue}>{displayPrice(booking.payment_status === 'refunded' ? (booking.refund?.amount_cents ?? booking.total_price * 100) / 100 : booking.total_price)}</Text>{booking.refund && <Text style={styles.arrivalHint}>Refund {booking.refund.status}: {displayPrice(booking.refund.amount_cents / 100)}</Text>}</View>
+        <View style={styles.paymentAction}><Text style={styles.paymentActionText}>{paid ? 'View receipt' : booking.payment_status === 'refunded' ? 'Refund completed' : 'Payment pending'}</Text><Feather name="chevron-right" size={17} color="#489CFC" /></View>
       </TouchableOpacity>
 
       <View style={styles.sectionDivider} />
       <View style={styles.cancellationCard}>
-        <View style={styles.cancellationTopRow}><View style={styles.cancellationTitleWrap}><Feather name="calendar" size={18} color="#489CFC" /><Text style={styles.cancellationTitle}>Cancellation</Text></View><TouchableOpacity onPress={() => router.push('/(modals)/terms')} activeOpacity={0.75}><Text style={styles.policyLink}>View policy</Text></TouchableOpacity></View>
-        <Text style={styles.cancellationText}>Free cancellation until {cancellationDeadline(booking.check_in_date)}, 2:00 PM.</Text>
+        <View style={styles.cancellationTopRow}><View style={styles.cancellationTitleWrap}><Feather name="calendar" size={18} color="#489CFC" /><Text style={styles.cancellationTitle}>Cancellation</Text></View><TouchableOpacity onPress={onPolicyPress} activeOpacity={0.75}><Text style={styles.policyLink}>View policy</Text></TouchableOpacity></View>
+        <Text style={styles.cancellationText}>{booking.policy?.text || 'Contact Hoysii for the cancellation terms for this stay.'}</Text>
       </View>
 
       <TouchableOpacity style={styles.supportButton} onPress={openSupport} activeOpacity={0.85}>
@@ -177,8 +182,10 @@ export default function TripsScreen() {
   const [error, setError] = useState(null);
   const [referenceBooking, setReferenceBooking] = useState(null);
   const [receiptBooking, setReceiptBooking] = useState(null);
+  const [policyBooking, setPolicyBooking] = useState(null);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
+    let active = true;
     const fetchBookings = async () => {
       if (!isSignedIn || !userId) { setLoading(false); return; }
       try {
@@ -189,23 +196,24 @@ export default function TripsScreen() {
         if (userError || !userData) throw new Error('Could not find user');
         const { data, error: bookingsError } = await client.from('bookings').select('*, hotels (*), rooms (*)').eq('user_id', userData.id).order('created_at', { ascending: false });
         if (bookingsError) throw bookingsError;
-        setBookings(data || []);
+        if (active) setBookings(data || []);
       } catch (fetchError) {
         console.error('Error fetching bookings:', fetchError);
-        setError('We could not load your trips. Please try again.');
+        if (active) setError('We could not load your trips. Please try again.');
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
     fetchBookings();
-  }, [isSignedIn, userId]);
+    return () => { active = false; };
+  }, [isSignedIn, userId]));
 
   const upcomingBookings = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return bookings.filter((booking) => {
       const checkOut = localDate(booking.check_out_date);
-      return !checkOut || checkOut >= today;
+      return booking.booking_status !== 'expired' && (!checkOut || checkOut >= today);
     });
   }, [bookings]);
 
@@ -216,9 +224,10 @@ export default function TripsScreen() {
       <StatusBar style="dark" />
       <ScrollView style={styles.scrollView} contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 112 }]} showsVerticalScrollIndicator={false}>
         <Text style={styles.headerTitle}>Trips</Text>
-        {loading ? <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#489CFC" /></View> : error ? <View style={styles.emptyContainer}><Feather name="wifi-off" size={42} color="#9CA3AF" /><Text style={styles.emptyTitle}>Trips unavailable</Text><Text style={styles.emptySubtitle}>{error}</Text></View> : upcomingBookings.length === 0 ? <View style={styles.emptyContainer}><Feather name="calendar" size={48} color="#D1D5DB" /><Text style={styles.emptyTitle}>No upcoming stays</Text><Text style={styles.emptySubtitle}>Your confirmed stays will appear here.</Text><TouchableOpacity style={styles.exploreButton} activeOpacity={0.8} onPress={() => router.push('/(tabs)')}><Text style={styles.exploreButtonText}>Explore stays</Text></TouchableOpacity></View> : <View style={styles.staysList}><Text style={styles.upcomingTitle}>Upcoming stay</Text>{upcomingBookings.map((booking) => <UpcomingStay key={booking.id} booking={booking} onReferencePress={() => setReferenceBooking(booking)} onReceiptPress={() => setReceiptBooking(booking)} />)}</View>}
+        {loading ? <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#489CFC" /></View> : error ? <View style={styles.emptyContainer}><Feather name="wifi-off" size={42} color="#9CA3AF" /><Text style={styles.emptyTitle}>Trips unavailable</Text><Text style={styles.emptySubtitle}>{error}</Text></View> : upcomingBookings.length === 0 ? <View style={styles.emptyContainer}><Feather name="calendar" size={48} color="#D1D5DB" /><Text style={styles.emptyTitle}>No upcoming stays</Text><Text style={styles.emptySubtitle}>Your confirmed stays will appear here.</Text><TouchableOpacity style={styles.exploreButton} activeOpacity={0.8} onPress={() => router.push('/(tabs)')}><Text style={styles.exploreButtonText}>Explore stays</Text></TouchableOpacity></View> : <View style={styles.staysList}><Text style={styles.upcomingTitle}>Upcoming stay</Text>{upcomingBookings.map((booking) => <UpcomingStay key={booking.id} booking={booking} onReferencePress={() => setReferenceBooking(booking)} onReceiptPress={() => setReceiptBooking(booking)} onPolicyPress={() => setPolicyBooking(booking)} />)}</View>}
       </ScrollView>
       {referenceBooking && <BookingReferenceModal booking={referenceBooking} visible onClose={() => setReferenceBooking(null)} />}
+      {policyBooking && <Modal transparent visible animationType="fade" onRequestClose={() => setPolicyBooking(null)}><Pressable style={styles.modalBackdrop} onPress={() => setPolicyBooking(null)}><Pressable style={styles.referenceModal} onPress={(event) => event.stopPropagation()}><Text style={styles.modalTitle}>Cancellation policy</Text><Text style={styles.modalDescription}>{policyBooking.policy?.text || 'Contact Hoysii support to review the original terms for this stay.'}</Text>{policyBooking.policy?.free_cancellation_until && <Text style={styles.modalDescription}>Free cancellation until {new Date(policyBooking.policy.free_cancellation_until).toLocaleString('en-US', { timeZone: 'Africa/Mogadishu' })} (Somalia time).</Text>}<TouchableOpacity style={styles.modalButton} onPress={() => setPolicyBooking(null)}><Text style={styles.modalButtonText}>Done</Text></TouchableOpacity></Pressable></Pressable></Modal>}
       {receiptBooking && <ReceiptModal booking={receiptBooking} visible onClose={() => setReceiptBooking(null)} />}
     </View>
   );

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { api, apiFetch } from "@/lib/api";
+import { HotelPolicyFields } from "@/components/hotel-policy-fields";
 import { Plus, Trash2, Save, Building2, BedDouble, CheckCircle, AlertCircle, Loader2, ArrowLeft, MapPin } from "lucide-react";
 import Link from "next/link";
 
@@ -129,12 +130,17 @@ export default function CreateHotel() {
         address: parseToArray(hotel.address),
         google_map_link: hotel.google_map_link,
         description: hotel.description,
-        starting_price: parseInt(hotel.starting_price) || 0,
+        starting_price: Number(hotel.starting_price) || 0,
         images: parseToArray(hotel.images),
         amenities: parseToArray(hotel.amenities),
         manager_phone: hotel.manager_phone,
         manager_email: hotel.manager_email,
         manager_name: hotel.manager_name,
+        check_in_time: hotel.check_in_time,
+        check_out_time: hotel.check_out_time,
+        cancellation_policy: hotel.cancellation_policy,
+        free_cancellation_hours: hotel.free_cancellation_hours,
+        cancellation_penalty_percent: hotel.cancellation_penalty_percent,
         is_verified: hotel.is_verified,
         rating: hotel.rating ? parseFloat(hotel.rating) : null,
         payment_methods: ['EVC Plus', 'Waafi'],
@@ -159,7 +165,7 @@ export default function CreateHotel() {
         return {
           hotel_id: hotelId,
           name: room.name,
-          price: parseInt(room.price) || 0,
+          price: Number(room.price) || 0,
           amenities: amenitiesList,
           images: parseToArray(room.images),
           capacity_adults: parseInt(room.capacity_adults) || 2,
@@ -304,6 +310,8 @@ export default function CreateHotel() {
                 placeholder="100"
               />
             </div>
+
+            <div className="md:col-span-2"><HotelPolicyFields value={hotel} onChange={(values) => setHotel((current) => ({ ...current, ...values }))} /></div>
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Manager Name</label>

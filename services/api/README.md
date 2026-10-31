@@ -6,6 +6,8 @@ Traveler email/password sign-up is followed by a password sign-in attempt in the
 
 ## Current deployment state
 
+The new booking/operations backend requires migration **0005**, which has only been validated locally. See [booking backend and release handoff](../../docs/BOOKING_BACKEND.md) for the release order, API routes, manual payment/refund controls, inventory rules and the remaining gateway integration work.
+
 The `hoysii` D1 database and `hoysii-hotel-media` R2 bucket are provisioned. All four D1 migrations are applied remotely. The first two preserve 2 hotels, 4 rooms, 8 legacy users, 52 historical bookings, and 9 hotel images; `0003_admin_auth.sql` adds independent admin auth tables and an emailed setup-link table, and `0004_traveler_management.sql` adds traveler account controls. Cloudflare DNS for `hoysii.com` is active. Workers Paid and Email Sending for `auth.hoysii.com` are enabled. The Worker is at `https://api.hoysii.com`, and the admin is at `https://admin.hoysii.com`. The app's local `.env` points to the production API; the admin's `.env.local` remains on the local Worker for development, while its deployed bundle points to production.
 
 ## Local development
