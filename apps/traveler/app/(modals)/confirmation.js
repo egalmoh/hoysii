@@ -9,6 +9,7 @@ import { useUser } from '../../lib/auth';
 import { apiFetch } from '../../lib/api';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAudioPlayer } from 'expo-audio';
+import { clearPaymentPreview, getPaymentPreview, isPaymentPreviewId } from '../../lib/payment-preview';
 
 // Import the sound asset
 const successSound = require('../../assets/sounds/success.mp3');
@@ -17,17 +18,30 @@ export default function BookingConfirmationScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
-  const { user } = useUser();
+  const { user, isLoaded } = useUser();
   const [booking, setBooking] = useState(null);
   const [error, setError] = useState('');
   useEffect(() => {
+    if (!isLoaded) return;
     let active = true;
+    setBooking(null);
+    setError('');
+    if (isPaymentPreviewId(params.bookingId)) {
+      const preview = getPaymentPreview(params.bookingId, user?.id, __DEV__);
+      if (preview) setBooking(preview);
+      else setError('This payment preview has expired. Choose a room to try again.');
+      return;
+    }
     apiFetch(`/v1/bookings/${encodeURIComponent(params.bookingId || '')}`).then((data) => {
       if (data.payment_status !== 'paid' || data.booking_status !== 'confirmed') throw new Error('This booking does not have a confirmed payment yet. Check Trips or contact Hoysii support.');
       if (active) setBooking(data);
     }).catch((error) => { if (active) setError(error.message); });
     return () => { active = false; };
-  }, [params.bookingId]);
+  }, [params.bookingId, user?.id, isLoaded]);
+  const goToTrips = () => {
+    clearPaymentPreview(params.bookingId);
+    router.dismissTo('/(tabs)/trips');
+  };
   
   // Use the new expo-audio hook
   const player = useAudioPlayer(successSound);
@@ -60,7 +74,7 @@ export default function BookingConfirmationScreen() {
   const datesDisplay = checkIn && checkOut ? `${formatDate(checkIn)} - ${formatDate(checkOut)}` : 'N/A';
   const guestsDisplay = `${adults} Adult${adults > 1 ? 's' : ''}${children > 0 ? `, ${children} Child${children > 1 ? 'ren' : ''}` : ''}`;
 
-  if (!booking) return <View style={[styles.container, { paddingTop: insets.top + 40, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center' }]}><StatusBar style="dark" />{error ? <Text style={styles.subText}>{error}</Text> : <ActivityIndicator color="#489CFC" />}<TouchableOpacity onPress={() => router.replace('/(tabs)/trips')} style={{ padding: 20 }}><Text style={{ color: '#489CFC' }}>Go to trip page</Text></TouchableOpacity></View>;
+  if (!booking) return <View style={[styles.container, { paddingTop: insets.top + 40, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center' }]}><StatusBar style="dark" />{error ? <Text style={styles.subText}>{error}</Text> : <ActivityIndicator color="#489CFC" />}<TouchableOpacity onPress={goToTrips} style={{ padding: 20 }}><Text style={{ color: '#489CFC' }}>Go to trip page</Text></TouchableOpacity></View>;
 
   return (
     <View style={styles.container}>
@@ -109,7 +123,7 @@ export default function BookingConfirmationScreen() {
             Pack your bags, {firstName.charAt(0).toUpperCase() + firstName.slice(1)}! You're going to {hotelLocation}.
           </Text>
           <Text style={styles.subText}>
-            Your booking at <Text style={styles.boldText}>{hotelName}</Text> is confirmed. {booking.receipt_email_status === 'sent' ? 'We have sent your receipt to ' : 'Your receipt is available in Trips. We will also email it to '}<Text style={styles.boldText}>{userEmail}</Text>.
+            {booking.is_payment_preview ? <>Payment confirmation preview for <Text style={styles.boldText}>{hotelName}</Text>. No money was charged, no reservation was created, and no email was sent.</> : <>Your booking at <Text style={styles.boldText}>{hotelName}</Text> is confirmed. {booking.receipt_email_status === 'sent' ? 'We have sent your receipt to ' : 'Your receipt is available in Trips. We will also email it to '}<Text style={styles.boldText}>{userEmail}</Text>.</>}
           </Text>
         </View>
 
@@ -150,7 +164,7 @@ export default function BookingConfirmationScreen() {
               <MaterialCommunityIcons name="shield-lock" size={28} color="#111827" />
             </View>
             <Text style={styles.trustText}>
-              Your funds are held securely by Hoysii. {'\n'}The host is not paid until 24 hours after you successfully check in.
+              {booking.is_payment_preview ? 'Development preview only. This stay is not booked and will not appear in Trips.' : <>Your funds are held securely by Hoysii. {'\n'}The host is not paid until 24 hours after you successfully check in.</>}
             </Text>
           </View>
         </View>
@@ -161,7 +175,7 @@ export default function BookingConfirmationScreen() {
         <TouchableOpacity
           style={styles.doneButton}
           activeOpacity={0.8}
-          onPress={() => router.replace('/(tabs)/trips')}
+          onPress={goToTrips}
         >
           <Text style={styles.doneButtonText}>Go to trip page</Text>
         </TouchableOpacity>

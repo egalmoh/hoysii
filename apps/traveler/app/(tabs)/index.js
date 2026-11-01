@@ -205,7 +205,7 @@ export default function ExploreScreen() {
           {!searchModalVisible && (
             <TouchableOpacity
               onPress={() => {
-                  router.push({
+                  router.navigate({
                     pathname: '/searchresults',
                     params: {
                       locationName: searchData.location?.name || '',
@@ -285,7 +285,7 @@ export default function ExploreScreen() {
                 key={hotel.id} 
                 hotel={hotel} 
                 index={index}
-                onPress={() => router.push(`/listingDetails/${hotel.id}`)}
+                onPress={() => router.navigate(`/listingDetails/${hotel.id}`)}
               />
             )))}
           </Animated.ScrollView>
@@ -305,7 +305,7 @@ export default function ExploreScreen() {
                 hotel={hotel} 
                 index={index}
                 cardWidth={cardWidth}
-                onPress={() => router.push(`/listingDetails/${hotel.id}`)}
+                onPress={() => router.navigate(`/listingDetails/${hotel.id}`)}
               />
             )))}
           </View>
@@ -331,7 +331,7 @@ export default function ExploreScreen() {
           const adults = finalData.guests?.adults ?? 1;
           const children = finalData.guests?.children ?? 0;
 
-          router.push({
+          router.navigate({
             pathname: '/searchresults',
             params: {
               locationName,

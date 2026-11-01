@@ -8,6 +8,8 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 
+export const unstable_settings = { initialRouteName: '(tabs)' };
+
 export default function RootLayout() {
   const [loaded] = useFonts({
     Inter_300Light,
@@ -21,15 +23,15 @@ export default function RootLayout() {
   }
 
   return (
-      <Stack>
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#FAFAFA' } }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="searchresults" options={{ headerShown: false }} />
         <Stack.Screen name="listingDetails" options={{ headerShown: false }} />
-        <Stack.Screen name="(modals)/login" options={{ headerShown: false, presentation: 'transparentModal' }} />
+        <Stack.Screen name="(modals)/login" options={{ presentation: 'transparentModal', contentStyle: { backgroundColor: 'transparent' } }} />
         <Stack.Screen name="(modals)/booking" options={{ headerShown: false, presentation: 'card' }} />
         <Stack.Screen name="(modals)/payment" options={{ headerShown: false, presentation: 'card' }} />
         <Stack.Screen name="(modals)/confirmation" options={{ headerShown: false, presentation: 'card' }} />
-        <Stack.Screen name="(modals)/terms" options={{ headerShown: false, presentation: 'transparentModal' }} />
+        <Stack.Screen name="(modals)/terms" options={{ presentation: 'transparentModal', contentStyle: { backgroundColor: 'transparent' } }} />
       </Stack>
   );
 }

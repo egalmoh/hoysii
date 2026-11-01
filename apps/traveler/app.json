@@ -28,6 +28,7 @@
       ]
     },
     "web": {
+      "output": "single",
       "favicon": "./assets/Images/favicon.png"
     },
     "plugins": [

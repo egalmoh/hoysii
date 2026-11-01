@@ -227,7 +227,7 @@ export default function SearchResultsScreen() {
               index={index} 
               cardWidth={resultsCardWidth}
               cardHeight={resultsCardHeight}
-              onPress={() => router.push({
+              onPress={() => router.navigate({
                 pathname: `/listingDetails/${hotel.id}`,
                 params: { checkIn, checkOut, adults: adultsParam, children: childrenParam }
               })}

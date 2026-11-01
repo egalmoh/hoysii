@@ -19,6 +19,8 @@ import Animated, {
 import WhatsAppModal from '../../components/WhatsAppModal';
 import { api, apiFetch, checkRoomAvailability, getUnavailableDates } from '../../lib/api';
 import { StatusBar } from 'expo-status-bar';
+import { isHotelVerified } from '../../lib/hotel-display';
+import { createPaymentPreview } from '../../lib/payment-preview';
 
 const WHATSAPP_STORAGE_KEY = '@user_whatsapp_number';
 
@@ -194,12 +196,21 @@ export default function BookingReview() {
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
   const { isSignedIn, userId } = useAuth();
+  const [property, setProperty] = useState(null);
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    setProperty(null);
+    if (params.hotelId) apiFetch(`/v1/hotels/${encodeURIComponent(params.hotelId)}`)
+      .then((data) => { if (active) setProperty(data.hotel); })
+      .catch(() => { /* An unavailable verification status must not show a badge. */ });
+    return () => { active = false; };
+  }, [params.hotelId]));
 
   // Get dynamic data from route params
   const hotelId = params.hotelId;
   const roomId = params.roomId;
   const hotelName = params.hotelName;
-  const roomType = params.roomName || 'Superior Deluxe Room (VIP)';
+  const roomType = params.roomName || 'Room';
   const hotelImageUri = params.hotelImage;
   const roomImageUri = params.roomImage;
   const hotelAddress = params.location || params.address || 'Address not available';
@@ -530,8 +541,7 @@ export default function BookingReview() {
           <View style={styles.topRow}>
             <TouchableOpacity
               onPress={() => {
-                // After router.replace from login, navigation stack is reset
-                // Use router.replace to go to a safe destination
+                // Return to the existing hotel screen when this review is closed.
                 try {
                   if (router.canGoBack()) {
                     router.back();
@@ -576,7 +586,7 @@ export default function BookingReview() {
                 </Text>
               </View>
 
-              <View style={styles.verifiedPill}>
+              {isHotelVerified(property) && <View style={styles.verifiedPill}>
                 <MaterialCommunityIcons
                   name="shield-check"
                   size={16}
@@ -586,7 +596,7 @@ export default function BookingReview() {
                 <Text style={styles.verifiedText} numberOfLines={1}>
                   VERIFIED BY HOYSII TEAM
                 </Text>
-              </View>
+              </View>}
             </View>
           </View>
         </LinearGradient>
@@ -664,7 +674,7 @@ export default function BookingReview() {
               
               <TouchableOpacity 
                  style={styles.paymentMethodCard}
-                 onPress={() => router.push('/(modals)/payment')}
+                 onPress={() => router.navigate('/(modals)/payment')}
                  activeOpacity={0.8}
               >
                 <View style={styles.paymentMethodContent}>
@@ -755,8 +765,8 @@ export default function BookingReview() {
             // STEP A: Authentication Check
             if (!isSignedIn) {
               // Redirect to login, then come back to booking after auth
-              // Use router.push (not replace) so booking screen stays visible behind the modal
-              router.push({
+              // Keep this review beneath the sign-in sheet.
+              router.navigate({
                 pathname: '/(modals)/login',
                 params: {
                   redirectTo: '/(modals)/booking',
@@ -816,7 +826,7 @@ export default function BookingReview() {
 
             // STEP C: Payment Selection
             if (!paymentMethod) {
-              router.push('/(modals)/payment');
+              router.navigate('/(modals)/payment');
               return;
             }
             
@@ -836,6 +846,19 @@ export default function BookingReview() {
               if (!userId || !hotelId || !roomId) {
                 alert('Booking information missing. Please try again.');
                 setSubmitting(false);
+                return;
+              }
+
+              // Preview only this final screen in the normal development app.
+              // Branch before creating a hold, initiating payment or writing a booking.
+              if (__DEV__) {
+                const preview = createPaymentPreview({
+                  userId,
+                  hotel: property || { id: hotelId, name: hotelName, city: params.hotelLocation, address: hotelAddress, images: hotelImageUri ? [hotelImageUri] : [] },
+                  room: { id: roomId, name: roomType, images: roomImageUri ? [roomImageUri] : [] },
+                  quote, adults, children,
+                }, __DEV__);
+                router.replace({ pathname: '/(modals)/confirmation', params: { bookingId: preview.id } });
                 return;
               }
 
@@ -909,11 +932,12 @@ export default function BookingReview() {
         {/* SSL Encrypted text */}
         {paymentMethod && (
           <View style={styles.sslTextContainer}>
+            {__DEV__ && <Text style={[styles.sslText, { color: '#92400E', marginBottom: 6 }]}>Payment preview · No money will be charged</Text>}
             <Text style={styles.sslText}>
               By clicking the button, you agree to our{' '}
               <Text 
                 style={{color: '#6B7280', fontWeight: 'bold', textDecorationLine: 'underline'}}
-                onPress={() => router.push('/(modals)/terms')}
+                onPress={() => router.navigate('/(modals)/terms')}
               >
                 Terms and Conditions
               </Text>

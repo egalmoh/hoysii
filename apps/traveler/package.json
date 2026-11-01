@@ -6,7 +6,9 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "build:web": "expo export --platform web --output-dir dist",
+    "preview:web": "wrangler dev --local --port 4173"
   },
   "dependencies": {
     "@better-auth/expo": "^1.7.14",
@@ -48,6 +50,7 @@
   "private": true,
   "devDependencies": {
     "@types/react": "~19.1.10",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "wrangler": "^4.153.0"
   }
 }
