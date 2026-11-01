@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Pressable, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -20,7 +20,10 @@ import WhatsAppModal from '../../components/WhatsAppModal';
 import { api, apiFetch, checkRoomAvailability, getUnavailableDates } from '../../lib/api';
 import { StatusBar } from 'expo-status-bar';
 import { isHotelVerified } from '../../lib/hotel-display';
-import { createPaymentPreview } from '../../lib/payment-preview';
+import { createPaymentPreview, isPaymentPreviewEnabled } from '../../lib/payment-preview';
+import { cancellationCutoff, formatCancellationDate } from '../../lib/cancellation-policy';
+
+const paymentPreviewEnabled = isPaymentPreviewEnabled(__DEV__, Platform.OS);
 
 const WHATSAPP_STORAGE_KEY = '@user_whatsapp_number';
 
@@ -230,6 +233,11 @@ export default function BookingReview() {
   const [quoteError, setQuoteError] = useState('');
   const roomPrice = quote?.nightly_rate ?? params.roomPrice ?? 0;
   const quoteMatches = quote?.check_in_date === checkIn && quote?.check_out_date === checkOut;
+  const cancellationDeadline = formatCancellationDate(
+    quoteMatches && quote.policy?.penalty_type === 'first_night'
+      ? quote.policy.free_cancellation_until
+      : cancellationCutoff(checkIn, property?.check_in_time || '14:00')
+  );
   useEffect(() => {
     if (!roomId || !checkIn || !checkOut) return;
     let active = true;
@@ -661,9 +669,9 @@ export default function BookingReview() {
           <View style={styles.cancellationPolicySection}>
             <Text style={styles.cancellationPolicyTitle}>Cancellation Policy</Text>
             <Text style={styles.cancellationPolicyText}>
-              {quoteMatches ? quote.policy.text : 'Select your dates to see the cancellation terms.'}
+              {cancellationDeadline ? <>Free Cancellation until: <Text style={{ textDecorationLine: 'underline', color: '#111827' }}>{cancellationDeadline}</Text>.</> : 'Select your dates to see the cancellation terms.'}
             </Text>
-            {quoteMatches && quote.policy.free_cancellation_until && <Text style={styles.cancellationPolicyText}>Free cancellation until {new Date(quote.policy.free_cancellation_until).toLocaleString('en-US', { timeZone: 'Africa/Mogadishu' })} (Somalia time).</Text>}
+            {cancellationDeadline && <Text style={styles.cancellationPolicyText}>After <Text style={{ textDecorationLine: 'underline', color: '#111827' }}>{cancellationDeadline}</Text>: Refund minus first night.</Text>}
             {quoteError && <Text style={styles.cancellationPolicyText}>{quoteError}</Text>}
           </View>
 
@@ -849,15 +857,15 @@ export default function BookingReview() {
                 return;
               }
 
-              // Preview only this final screen in the normal development app.
+              // Preview this final screen in development and the current web checkout.
               // Branch before creating a hold, initiating payment or writing a booking.
-              if (__DEV__) {
+              if (paymentPreviewEnabled) {
                 const preview = createPaymentPreview({
                   userId,
                   hotel: property || { id: hotelId, name: hotelName, city: params.hotelLocation, address: hotelAddress, images: hotelImageUri ? [hotelImageUri] : [] },
                   room: { id: roomId, name: roomType, images: roomImageUri ? [roomImageUri] : [] },
                   quote, adults, children,
-                }, __DEV__);
+                }, paymentPreviewEnabled);
                 router.replace({ pathname: '/(modals)/confirmation', params: { bookingId: preview.id } });
                 return;
               }
@@ -932,7 +940,7 @@ export default function BookingReview() {
         {/* SSL Encrypted text */}
         {paymentMethod && (
           <View style={styles.sslTextContainer}>
-            {__DEV__ && <Text style={[styles.sslText, { color: '#92400E', marginBottom: 6 }]}>Payment preview · No money will be charged</Text>}
+            {paymentPreviewEnabled && <Text style={[styles.sslText, { color: '#92400E', marginBottom: 6 }]}>Payment preview · No money will be charged</Text>}
             <Text style={styles.sslText}>
               By clicking the button, you agree to our{' '}
               <Text 

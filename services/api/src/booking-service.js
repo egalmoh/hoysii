@@ -28,14 +28,15 @@ export function notification(database, bookingId, kind, recipient, subject, body
   return statement(database, 'INSERT OR IGNORE INTO notifications (id, booking_id, kind, recipient, subject, body) VALUES (?, ?, ?, ?, ?, ?)', crypto.randomUUID(), bookingId, kind, recipient, subject, body);
 }
 
+const ORIGINAL_CANCELLATION_POLICY = 'Free cancellation until 24 hours before check-in. After that: refund minus the first night.';
+
 export function policyFor(hotel, checkIn) {
-  const hours = hotel.free_cancellation_hours == null ? null : Number(hotel.free_cancellation_hours);
   const time = hotel.check_in_time || '14:00';
   return {
-    text: hotel.cancellation_policy || 'Contact Hoysii support for cancellation terms.',
-    free_cancellation_hours: hours,
-    penalty_percent: Number(hotel.cancellation_penalty_percent ?? 100),
-    free_cancellation_until: hours == null ? null : new Date(Date.parse(`${checkIn}T${time}:00+03:00`) - hours * 3600000).toISOString(),
+    text: ORIGINAL_CANCELLATION_POLICY,
+    free_cancellation_hours: 24,
+    penalty_type: 'first_night',
+    free_cancellation_until: new Date(Date.parse(`${checkIn}T${time}:00+03:00`) - 86400000).toISOString(),
     check_in_time: time, check_out_time: hotel.check_out_time || '12:00', timezone: 'Africa/Mogadishu',
   };
 }
@@ -43,18 +44,12 @@ export function validatePolicy(body, current = {}) {
   const result = {
     check_in_time: body.check_in_time ?? current.check_in_time ?? '14:00',
     check_out_time: body.check_out_time ?? current.check_out_time ?? '12:00',
-    cancellation_policy: body.cancellation_policy ?? current.cancellation_policy ?? 'Contact Hoysii support for cancellation terms.',
-    free_cancellation_hours: Object.hasOwn(body, 'free_cancellation_hours') ? body.free_cancellation_hours : current.free_cancellation_hours ?? null,
-    cancellation_penalty_percent: Number(body.cancellation_penalty_percent ?? current.cancellation_penalty_percent ?? 100),
+    cancellation_policy: ORIGINAL_CANCELLATION_POLICY,
+    free_cancellation_hours: 24,
+    // Retained for schema compatibility. New bookings use penalty_type: first_night.
+    cancellation_penalty_percent: 100,
   };
   if (![result.check_in_time, result.check_out_time].every((v) => typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v))) reject('Enter valid check-in and check-out times.');
-  if (typeof result.cancellation_policy !== 'string' || !result.cancellation_policy.trim() || result.cancellation_policy.length > 2000) reject('Enter the agreed cancellation policy.');
-  if (result.free_cancellation_hours === '') result.free_cancellation_hours = null;
-  if (result.free_cancellation_hours != null) {
-    result.free_cancellation_hours = Number(result.free_cancellation_hours);
-    if (!Number.isInteger(result.free_cancellation_hours) || result.free_cancellation_hours < 0 || result.free_cancellation_hours > 8760) reject('Free cancellation hours are invalid.');
-  }
-  if (!Number.isInteger(result.cancellation_penalty_percent) || result.cancellation_penalty_percent < 0 || result.cancellation_penalty_percent > 100) reject('Cancellation penalty must be between 0 and 100 percent.');
   return result;
 }
 export function policyUpdate(database, id, policy) {
@@ -137,7 +132,15 @@ export function refundQuote(booking, at = Date.now()) {
   if (!['paid', 'partially_refunded'].includes(booking.payment_status)) return 0;
   const policy = parse(booking.policy_snapshot);
   if (!policy || policy.free_cancellation_hours == null) return null;
-  if (at <= Date.parse(policy.free_cancellation_until)) return booking.total_cents;
+  const cutoff = Date.parse(policy.free_cancellation_until);
+  if (!Number.isFinite(cutoff)) return null;
+  if (at <= cutoff) return booking.total_cents;
+  if (policy.penalty_type === 'first_night') {
+    if (!Number.isSafeInteger(booking.nightly_cents) || booking.nightly_cents < 0) return null;
+    return Math.max(0, booking.total_cents - booking.nightly_cents);
+  }
+  // Previously saved bookings retain the percentage terms actually agreed then.
+  if (!Number.isFinite(policy.penalty_percent)) return null;
   return Math.max(0, booking.total_cents - Math.round(booking.total_cents * policy.penalty_percent / 100));
 }
 

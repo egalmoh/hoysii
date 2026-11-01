@@ -151,7 +151,7 @@ test('cancellation releases inventory but only a completed refund changes money 
     const stored = await bookingRecord(f.env, booking.id);
     assert.equal(refundQuote(stored), 19965);
     const cutoff = Date.parse(JSON.parse(stored.policy_snapshot).free_cancellation_until);
-    assert.equal(refundQuote(stored, cutoff + 1), 14974);
+    assert.equal(refundQuote(stored, cutoff + 1), 13915); // Total less the saved $60.50 first night.
     await f.action(`/v1/admin/bookings/${booking.id}/cancel`, { reason: 'Traveler requested cancellation' });
     const cancelled = await bookingRecord(f.env, booking.id);
     assert.equal(cancelled.booking_status, 'cancelled');
@@ -231,7 +231,7 @@ test('quote and creation agree on cents and fees and reject stale totals or poli
     assert.equal(quote.service_fee, 18.15);
     assert.equal(quote.total_price, 199.65);
     await assert.rejects(f.book({ expected_total_cents: 19964 }), { status: 409 });
-    await assert.rejects(f.book({ expected_policy: { ...quote.policy, penalty_percent: 0 } }), { status: 409 });
+    await assert.rejects(f.book({ expected_policy: { ...quote.policy, penalty_type: 'none' } }), { status: 409 });
     const booking = await f.book({ expected_total_cents: 19965, expected_policy: quote.policy });
     assert.equal(booking.total_price, quote.total_price);
     assert.equal(booking.service_fee, quote.service_fee);

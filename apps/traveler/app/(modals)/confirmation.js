@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,7 +9,9 @@ import { useUser } from '../../lib/auth';
 import { apiFetch } from '../../lib/api';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAudioPlayer } from 'expo-audio';
-import { clearPaymentPreview, getPaymentPreview, isPaymentPreviewId } from '../../lib/payment-preview';
+import { clearPaymentPreview, getPaymentPreview, isPaymentPreviewId, isPaymentPreviewEnabled } from '../../lib/payment-preview';
+
+const paymentPreviewEnabled = isPaymentPreviewEnabled(__DEV__, Platform.OS);
 
 // Import the sound asset
 const successSound = require('../../assets/sounds/success.mp3');
@@ -27,7 +29,7 @@ export default function BookingConfirmationScreen() {
     setBooking(null);
     setError('');
     if (isPaymentPreviewId(params.bookingId)) {
-      const preview = getPaymentPreview(params.bookingId, user?.id, __DEV__);
+      const preview = getPaymentPreview(params.bookingId, user?.id, paymentPreviewEnabled);
       if (preview) setBooking(preview);
       else setError('This payment preview has expired. Choose a room to try again.');
       return;
@@ -164,7 +166,7 @@ export default function BookingConfirmationScreen() {
               <MaterialCommunityIcons name="shield-lock" size={28} color="#111827" />
             </View>
             <Text style={styles.trustText}>
-              {booking.is_payment_preview ? 'Development preview only. This stay is not booked and will not appear in Trips.' : <>Your funds are held securely by Hoysii. {'\n'}The host is not paid until 24 hours after you successfully check in.</>}
+              {booking.is_payment_preview ? 'Payment preview only. This stay is not booked and will not appear in Trips.' : <>Your funds are held securely by Hoysii. {'\n'}The host is not paid until 24 hours after you successfully check in.</>}
             </Text>
           </View>
         </View>

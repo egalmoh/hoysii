@@ -47,6 +47,11 @@ Do not replace or materially expand this stack without explicit user approval.
 ## MVP focus
 Start narrow, with Mogadishu as the first major destination.
 
+## Existing cancellation rule
+- Preserve free cancellation until 24 hours before check-in, with a deadline that updates when the selected dates change.
+- After the cutoff, refund the total paid minus the saved first-night room rate. Do not replace this with a percentage penalty or generic support text without an explicit product change request.
+- New bookings must show and save the same rule in the app and API. Existing bookings retain their saved terms.
+
 ## Traveler MVP
 - Search
 - Hotel results
