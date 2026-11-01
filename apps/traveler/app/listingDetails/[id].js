@@ -8,6 +8,7 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { api } from '../../lib/api';
 import { ActivityIndicator } from 'react-native';
 import AvailableRoomCard from '../../components/AvailableRoomCard';
+import { hotelOffers, isHotelVerified } from '../../lib/hotel-display';
 
 export default function ListingScreen() {
   const { id } = useLocalSearchParams();
@@ -107,19 +108,14 @@ export default function ListingScreen() {
   const goLeft = () => scrollToIndex(activeIndex - 1);
   const goRight = () => scrollToIndex(activeIndex + 1);
 
-  const offers = [
-    { id: 'security', label: 'Security Guard', icon: 'account-tie-hat' },
-    { id: 'gym', label: 'Gym', icon: 'dumbbell' },
-    { id: 'wifi', label: 'Free Wifi', icon: 'wifi' },
-    { id: 'restaurant', label: 'Restaurant', icon: 'silverware-fork-knife' },
-  ];
+  const offers = hotelOffers(hotel);
 
   // Transform rooms for the card
   const displayRooms = rooms.map(room => ({
     ...room,
     bedSize: room.bed_size,
     capacityAdults: room.capacity_adults,
-    image: room.images?.[0] || room.images?.[1] || room.images?.[2] || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=600',
+    image: room.images?.[0] || '',
     amenities: (room.amenities || []).join(', '),
   }));
 
@@ -132,7 +128,7 @@ export default function ListingScreen() {
         paddingRight: insets.right + 16,
       }]}>
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)')}
           style={styles.backButton}
           activeOpacity={0.7}
           accessibilityRole="button"
@@ -232,19 +228,19 @@ export default function ListingScreen() {
 
             {/* Verified Badge Section */}
             <View style={styles.dividerAndVerifiedSection}>
-              <View style={styles.verifiedSection}>
+              {isHotelVerified(hotel) && <View style={styles.verifiedSection}>
                 <View style={styles.verifiedBadge}>
                   <MaterialCommunityIcons name="shield-check" size={23} color="#489CFC" />
                   <Text style={styles.verifiedText}>verified by hoysii team</Text>
                 </View>
-              </View>
+              </View>}
 
               {/* Divider Line */}
               <View style={styles.divider} />
             </View>
 
             {/* What this hotel offers */}
-            <View style={styles.offersSection}>
+            {offers.length > 0 && <View style={styles.offersSection}>
               <Text style={styles.offersTitle}>What this hotel offers?</Text>
 
               <View style={styles.offersRow}>
@@ -261,7 +257,7 @@ export default function ListingScreen() {
                   </View>
                 ))}
               </View>
-            </View>
+            </View>}
 
           {/* Availability Section */}
           <View style={styles.availabilitySection}>
@@ -452,11 +448,15 @@ const styles = StyleSheet.create({
   },
   offersRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    rowGap: 16,
     justifyContent: 'space-between',
     width: '100%',
   },
   offerItem: {
     alignItems: 'center',
+    width: '25%',
+    paddingHorizontal: 4,
   },
   offerIconWrapper: {
     width: 40,

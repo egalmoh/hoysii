@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { View, Text, TouchableOpacity, Image, ScrollView, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import Animated, { FadeIn } from 'react-native-reanimated';
+import { isHotelVerified } from '../lib/hotel-display';
 
 const CARD_WIDTH = 280;
 const CARD_HEIGHT = 280;
@@ -115,9 +116,9 @@ export default function HotelCard({ hotel, index, cardWidth = CARD_WIDTH, cardHe
           <Text style={styles.address} numberOfLines={1}>
             {hotel.city}
           </Text>
-          <Text style={styles.amenities} numberOfLines={1}>
-            {(hotel.amenities || []).join(', ') || 'Security Guard, AC, Work Desk, flat tv, Gym'}
-          </Text>
+          {hotel.amenities?.length > 0 && <Text style={styles.amenities} numberOfLines={1}>
+            {hotel.amenities.join(', ')}
+          </Text>}
           <View style={styles.priceRow}>
             <Text style={styles.price}>${hotel.starting_price}</Text>
             <Text style={styles.priceLabel}>per night</Text>
@@ -125,7 +126,7 @@ export default function HotelCard({ hotel, index, cardWidth = CARD_WIDTH, cardHe
         </View>
 
         {/* Right Side - Verified Badge */}
-        {hotel.is_verified && (
+        {isHotelVerified(hotel) && (
           <View style={styles.verifiedBadgeContainer}>
             <View style={styles.verifiedBadge}>
               <MaterialCommunityIcons name="shield-check" size={18} color="#489CFC" />

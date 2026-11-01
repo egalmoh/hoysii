@@ -13,7 +13,7 @@ The implementation uses the existing API Worker, D1, Better Auth, email binding 
 3. Release the traveler JavaScript changes through the app's distribution process. Cloudflare deployment of the API/admin does not update an installed native app. No new native module is introduced by this change.
 4. Check actual hotel notification emails, room quantities, rates, cancellation terms and check-in/out times before accepting a real stay. Public listings expose approved hotel fields only; manager contacts remain admin-only.
 
-Migrations 0001–0004 were already applied at the earlier migration handoff. **0005 is new and has only been checked locally.** It adds columns, tables, indexes and inventory constraints. It retains existing accounts, bookings and legacy tables. Historical prices/terms are not reconstructed from today's hotel settings: older bookings without snapshots require manual reconciliation and cannot be settled through the new payment action.
+Migrations 0001–0004 were already applied at the earlier migration handoff. The owner reported successfully applying **0005** to remote D1 on 31 October 2026. It adds columns, tables, indexes and inventory constraints. It retains existing accounts, bookings and legacy tables. Historical prices/terms are not reconstructed from today's hotel settings: older bookings without snapshots require manual reconciliation and cannot be settled through the new payment action.
 
 During the schema/code rollout, avoid editing room stock or recording payments from an older admin build. The migration must precede the API release; verify both API and admin deployments before resuming those actions.
 
@@ -80,6 +80,18 @@ Cancellation releases stock. It does not mark money refunded. Refunds move throu
 Admin writes require the independent admin session and a configured admin/localhost origin. Traveler sessions cannot access them. Traveler responses exclude internal hotel acknowledgement states and staff notes.
 
 ## Local validation
+
+### Preview payment confirmation in the normal app
+
+Run `npm start` inside `apps/traveler` and use the normal Explore screen. Hotel data, room availability, quotes and sign-in use the existing API configured by `EXPO_PUBLIC_API_URL`. There is no separate test app, API server, database, account or environment flag.
+
+In development (`__DEV__`), select a hotel, dates, room and payment method, then press **Pay Securely**. The app opens the existing confirmation screen using the selected hotel and quote. The checkout displays a payment-preview notice and the confirmation reference begins with `PREVIEW-`.
+
+The mock happens before any booking or payment POST: it does not create an inventory hold, charge money, notify a hotel or send a receipt email. A single temporary JavaScript object supplies this screen and is cleared when leaving it; it is not persisted in storage or a database. The preview will not appear in Trips or admin. Normal authentication and profile actions still use the existing backend.
+
+Release builds use the real booking/payment path and cannot create or open payment previews. The production provider remains unconfigured until a real gateway adapter is connected. This preview checks the screens and navigation; it does not verify gateway integration or backend settlement. No migration or deployment is required for previewing locally.
+
+Traveler helper checks: `node --test test/*.test.js` inside `apps/traveler`.
 
 Run `npm test` and `npm run check` inside `services/api`; tests use in-memory SQLite with foreign keys, real migrations and transactional batches. They send no real emails and contact no payment provider. Admin checks are `npm run lint` and `npm run build:cloudflare`. Traveler bundles can be checked with `npx expo export --platform all --output-dir <temporary-folder>`.
 

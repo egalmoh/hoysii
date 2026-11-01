@@ -3,6 +3,61 @@ import assert from 'node:assert/strict';
 import { localD1 } from './support/d1.js';
 import { createAuth, createAdminAuth } from '../src/auth.js';
 import worker from '../src/index.js';
+import { readFileSync } from 'node:fs';
+
+test('traveler web origins support credentialed email auth and reject unrelated origins', async () => {
+  const config = readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
+  const DB = localD1();
+  const sent = [];
+  const env = {
+    DB,
+    BETTER_AUTH_URL: 'https://api.hoysii.com',
+    BETTER_AUTH_SECRET: 'traveler-test-secret-at-least-thirty-two-characters',
+    ADMIN_AUTH_SECRET: 'independent-admin-test-secret-at-least-thirty-two-characters',
+    TRUSTED_ORIGINS: config.match(/"TRUSTED_ORIGINS":\s*"([^"]+)"/)[1],
+    SEND_EMAIL: { async send(message) { sent.push(message); } },
+  };
+  const request = (path, origin, body, cookie) => worker.fetch(new Request(`https://api.hoysii.com${path}`, {
+    method: body ? 'POST' : 'GET',
+    headers: { origin, ...(body ? { 'content-type': 'application/json' } : {}), ...(cookie ? { cookie } : {}) },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  }), env);
+  try {
+    for (const origin of ['https://hoysii.com', 'https://www.hoysii.com']) {
+      const preflight = await worker.fetch(new Request('https://api.hoysii.com/v1/bookings', {
+        method: 'OPTIONS', headers: { origin, 'access-control-request-method': 'POST', 'access-control-request-headers': 'content-type,x-idempotency-key' },
+      }), env);
+      assert.equal(preflight.headers.get('access-control-allow-origin'), origin);
+      assert.equal(preflight.headers.get('access-control-allow-credentials'), 'true');
+      assert.match(preflight.headers.get('access-control-allow-headers'), /X-Idempotency-Key/i);
+
+      const email = origin.includes('www.') ? 'web-www@example.com' : 'web-apex@example.com';
+      const credentials = { email, password: 'SecurePass123!' };
+      assert.equal((await request('/api/auth/sign-up/email', origin, { ...credentials, name: 'Web Traveler' })).status, 200);
+      assert.equal((await request('/api/auth/sign-in/email', origin, credentials)).status, 403);
+      const otp = sent.at(-1).text.match(/\b\d{6}\b/)[0];
+      assert.equal((await request('/api/auth/email-otp/verify-email', origin, { email, otp })).status, 200);
+      const signin = await request('/api/auth/sign-in/email', origin, credentials);
+      assert.equal(signin.status, 200);
+      assert.equal(signin.headers.get('access-control-allow-origin'), origin);
+      const setCookie = signin.headers.get('set-cookie');
+      assert.match(setCookie, /HttpOnly/i);
+      assert.match(setCookie, /Secure/i);
+      const cookie = setCookie.split(';')[0];
+      const session = await request('/api/auth/get-session', origin, undefined, cookie);
+      assert.equal((await session.json()).user.email, email);
+      assert.equal((await request('/v1/trips', origin, undefined, cookie)).status, 200);
+      assert.equal((await request('/v1/admin/hotels', origin, undefined, cookie)).status, 401);
+      assert.equal((await request('/api/auth/sign-out', origin, {}, cookie)).status, 200);
+      assert.equal(await (await request('/api/auth/get-session', origin, undefined, cookie)).json(), null);
+    }
+    const untrusted = await request('/api/auth/sign-in/email', 'https://hoysii.com.attacker.example', { email: 'web-apex@example.com', password: 'SecurePass123!' });
+    assert.equal(untrusted.status, 403);
+    assert.equal(untrusted.headers.get('access-control-allow-origin'), null);
+  } finally {
+    DB.close();
+  }
+});
 
 async function post(auth, path, body, origin = 'hoysii://') {
   const response = await auth.handler(new Request(`https://api.hoysii.com${path}`, {

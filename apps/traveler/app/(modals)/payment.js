@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -27,19 +27,36 @@ export default function PaymentSelectionScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [selectedMethod, setSelectedMethod] = useState('');
+  const selectionRef = useRef(false);
+  const leavingRef = useRef(false);
+  const returnTimer = useRef(null);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; clearTimeout(returnTimer.current); };
+  }, []);
 
   const handleSelectPayment = async (method) => {
+    if (selectionRef.current) return;
+    selectionRef.current = true;
     setSelectedMethod(method.id);
     
     // Store payment selection for booking screen to read
-    await AsyncStorage.setItem('selectedPaymentMethod', JSON.stringify({
-      id: method.id,
-      name: method.name
-    }));
+    try {
+      await AsyncStorage.setItem('selectedPaymentMethod', JSON.stringify({ id: method.id, name: method.name }));
+    } catch {
+      selectionRef.current = false;
+      setSelectedMethod('');
+      alert('Could not save your payment selection. Please try again.');
+      return;
+    }
+    if (!mountedRef.current || leavingRef.current) return;
     
     // Go back to the existing booking screen
-    setTimeout(() => {
-        router.back();
+    returnTimer.current = setTimeout(() => {
+        leavingRef.current = true;
+        if (router.canGoBack()) router.back();
+        else router.replace('/(tabs)');
     }, 300);
   };
 
@@ -59,7 +76,12 @@ export default function PaymentSelectionScreen() {
           {/* Top Row: Back + Title */}
           <View style={styles.topRow}>
             <TouchableOpacity 
-              onPress={() => router.back()} 
+              onPress={() => {
+                leavingRef.current = true;
+                clearTimeout(returnTimer.current);
+                if (router.canGoBack()) router.back();
+                else router.replace('/(tabs)');
+              }}
               style={styles.backButton}
               activeOpacity={0.7}
             >

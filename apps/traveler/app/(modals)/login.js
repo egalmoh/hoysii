@@ -48,6 +48,11 @@ export default function LoginScreen() {
   const [recoveryStep, setRecoveryStep] = useState(null); // 'request' | 'reset'
   const [newPassword, setNewPassword] = useState('');
   const handledAuthRef = useRef(false);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
   
   // Animation
   const translateY = useSharedValue(400);
@@ -67,7 +72,9 @@ export default function LoginScreen() {
   }, [isSignedIn, authUser?.id]);
 
   const close = () => {
-    router.back();
+    mountedRef.current = false;
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)');
   };
 
   const handleSuccessfulAuth = useCallback(async () => {
@@ -84,12 +91,10 @@ export default function LoginScreen() {
         // Check if there are stored OAuth redirect params (from before app reload)
         let savedRedirectTo = redirectTo;
         let savedParams = params;
-        let wasOAuthReload = false;
         
         try {
           const storedOAuthParams = await AsyncStorage.getItem('oauthRedirectParams');
           if (storedOAuthParams) {
-            wasOAuthReload = true;
             const parsed = JSON.parse(storedOAuthParams);
             savedRedirectTo = parsed.redirectTo;
             savedParams = parsed.params;
@@ -100,43 +105,32 @@ export default function LoginScreen() {
           console.error('Error retrieving OAuth params:', err);
         }
 
-        // Allow the auth session to update before navigating.
-        setTimeout(() => {
-          // If there's a redirect path (e.g., booking modal), just go back to close this modal
-          // The booking screen is still in the navigation stack and will detect the auth state change
-          if (savedRedirectTo) {
-            // Check if we came from OAuth (app reload) - need to use replace
-            // Otherwise just go back to close the modal and return to existing screen
-            if (wasOAuthReload) {
-              // OAuth caused app reload, need to navigate to booking with full params
-              router.replace({
-                pathname: savedRedirectTo,
-                params: {
-                    hotelId: savedParams.hotelId || '',
-                    roomId: savedParams.roomId || '',
-                    hotelName: savedParams.hotelName || '',
-                    roomName: savedParams.roomName || '',
-                    hotelImage: savedParams.hotelImage || '',
-                    roomImage: savedParams.roomImage || '',
-                    checkIn: savedParams.checkIn || '',
-                    checkOut: savedParams.checkOut || '',
-                    adults: savedParams.adults || '1',
-                    children: savedParams.children || '0',
-                    roomPrice: savedParams.roomPrice || '',
-                    location: savedParams.location || '',
-                    address: savedParams.address || '',
-                    showWhatsAppCheck: 'true',
-                }
-              });
-            } else {
-              // Normal login (no app reload) - just close the modal
-              router.back();
-            }
-          } else {
-            // Navigate to home tabs instead of going back (avoids GO_BACK error)
-            router.replace('/(tabs)');
-          }
-        }, 300); // 300ms delay for auth state to settle
+        if (!mountedRef.current) return;
+        // Pop to the existing review instead of adding a second copy after OAuth.
+        // If an OAuth reload removed it, dismissTo replaces this login with review.
+        if (savedRedirectTo) {
+          router.dismissTo({
+            pathname: savedRedirectTo,
+            params: {
+              hotelId: savedParams.hotelId || '',
+              roomId: savedParams.roomId || '',
+              hotelName: savedParams.hotelName || '',
+              roomName: savedParams.roomName || '',
+              hotelImage: savedParams.hotelImage || '',
+              roomImage: savedParams.roomImage || '',
+              checkIn: savedParams.checkIn || '',
+              checkOut: savedParams.checkOut || '',
+              adults: savedParams.adults || '1',
+              children: savedParams.children || '0',
+              roomPrice: savedParams.roomPrice || '',
+              location: savedParams.location || '',
+              address: savedParams.address || '',
+              showWhatsAppCheck: 'true',
+            },
+          });
+        } else {
+          router.dismissTo('/(tabs)');
+        }
       }
   }, [redirectTo, router, params, authUser, isSignedIn]);
 
@@ -183,7 +177,10 @@ export default function LoginScreen() {
         }
       }
 
-      const { error: authError } = await authClient.signIn.social({ provider: 'google', callbackURL: '/login' });
+      const { error: authError } = await authClient.signIn.social({
+        provider: 'google',
+        callbackURL: Platform.OS === 'web' ? new URL('/login', window.location.origin).href : '/login',
+      });
       if (authError) throw new Error(authError.message);
     } catch (err) {
       console.error('Google sign in error:', err);
@@ -211,7 +208,10 @@ export default function LoginScreen() {
         }
       }
 
-      const { error: authError } = await authClient.signIn.social({ provider: 'apple', callbackURL: '/login' });
+      const { error: authError } = await authClient.signIn.social({
+        provider: 'apple',
+        callbackURL: Platform.OS === 'web' ? new URL('/login', window.location.origin).href : '/login',
+      });
       if (authError) throw new Error(authError.message);
     } catch (err) {
       console.error('Apple sign in error:', err);

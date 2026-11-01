@@ -1,6 +1,8 @@
 import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Animated, { FadeIn } from 'react-native-reanimated';
+import { Feather } from '@expo/vector-icons';
+import { isHotelVerified } from '../lib/hotel-display';
 
 export default function PopularStayCard({ hotel, index, cardWidth, onPress }) {
   // Maintain aspect ratio from Figma (156/191 ≈ 0.82)
@@ -18,11 +20,11 @@ export default function PopularStayCard({ hotel, index, cardWidth, onPress }) {
       >
         {/* Image Container */}
         <View style={[styles.imageContainer, { width: cardWidth, height: imageHeight }]}>
-          <Image
-            source={{ uri: hotel.images?.[0] || hotel.images?.[1] || hotel.images?.[2] || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=600' }}
+          {hotel.images?.[0] ? <Image
+            source={{ uri: hotel.images[0] }}
             style={{ width: cardWidth, height: imageHeight }}
             resizeMode="cover"
-          />
+          /> : <View style={{ height: imageHeight, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E5E7EB' }}><Feather name="home" size={24} color="#6B7280" /></View>}
         </View>
 
         {/* Hotel Info */}
@@ -37,7 +39,7 @@ export default function PopularStayCard({ hotel, index, cardWidth, onPress }) {
           </View>
 
           {/* Right Side - Verified Badge */}
-          {hotel.is_verified && (
+          {isHotelVerified(hotel) && (
             <View style={styles.verifiedBadge}>
               <MaterialCommunityIcons name="shield-check" size={18} color="#489CFC" />
             </View>

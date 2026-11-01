@@ -1,12 +1,13 @@
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import React from 'react';
+import { Feather } from '@expo/vector-icons';
 
 export default function AvailableRoomCard({ room, hotel, searchParams = {} }) {
   const router = useRouter();
 
   const handleBookPress = () => {
-    router.push({
+    router.navigate({
       pathname: '/(modals)/booking',
       params: {
         hotelId: String(hotel?.id || ''),
@@ -31,11 +32,11 @@ export default function AvailableRoomCard({ room, hotel, searchParams = {} }) {
   return (
     <View style={styles.roomCard}>
       <View style={styles.roomCardContent}>
-        <Image
+        {room.image ? <Image
           source={{ uri: room.image }}
           style={styles.roomImage}
           resizeMode="cover"
-        />
+        /> : <View style={[styles.roomImage, { minHeight: 130, backgroundColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center' }]}><Feather name="home" size={24} color="#6B7280" /></View>}
 
         <View style={styles.roomDetails}>
           <View style={styles.roomInfo}>
