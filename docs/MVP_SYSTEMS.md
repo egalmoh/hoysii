@@ -62,6 +62,14 @@ Search filters operate on the API's returned matching hotels after date/guest av
 
 ## Owner release steps — no manual Codex deployment
 
+### Traveler web installation (PWA)
+
+The traveler web export includes a manifest, home-screen icons from the existing Hoysii brand mark, Apple home-screen metadata and a web-only **Install Hoysii** option on the Profile/Log in tab. Supporting Android/desktop browsers show their native install prompt when available; iPhone/iPad users receive Share → Add to Home Screen instructions. The option disappears in an installed standalone window. Native iOS/Android layouts remain unchanged.
+
+This is an online PWA: search, availability, authentication and bookings still use the existing API. No service worker or offline response cache is added, so availability/account responses are not saved for offline replay. The existing Cloudflare traveler Git build (`npm run build:web` in `apps/traveler`) copies `public/` into the exported site. Push/merge through the owner's normal release process; no database migration, new secret or separate PWA hosting is required. After deployment, verify installation and standalone launch on Android Chrome and iPhone Safari at `https://hoysii.com`. Local preview can check the manifest, assets and UI; it does not prove physical-phone installation.
+
+### Other systems
+
 1. Apply **`0006_partner_reviews_dashboard.sql`** to the existing D1 database before the matching API/admin/traveler release. From `services/api`, the owner runs `npx wrangler d1 migrations apply hoysii --remote`. Review the SQL first. It adds tables and retains existing records. Codex has not run this against production.
 2. Add a new random **`PARTNER_AUTH_SECRET`** (at least 32 characters) to the API Worker's secrets in Cloudflare. Never reuse traveler/admin secrets. Code config includes `PARTNER_PANEL_URL=https://partners.hoysii.com`, which also supplies the exact partner CORS/trusted origin. Existing bindings/secrets remain needed.
 3. Push the branch and merge through your normal GitHub PR process. Existing API/admin/traveler Cloudflare Git integrations update those services; Codex does not push or deploy.

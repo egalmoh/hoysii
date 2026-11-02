@@ -5,6 +5,7 @@ import { useAuth, useUser } from '../../lib/auth';
 import { apiFetch } from '../../lib/api';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import InstallApp from '../../components/InstallApp';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -51,6 +52,7 @@ export default function ProfileScreen() {
           </TouchableOpacity>
 
           {/* Features list */}
+          <InstallApp />
           <View style={styles.featuresList}>
             <View style={styles.featureItem}>
               <MaterialCommunityIcons name="shield-check" size={24} color="#489CFC" />
@@ -130,6 +132,7 @@ export default function ProfileScreen() {
         </View>
 
         {/* Help & Support Section */}
+        <InstallApp />
         <View style={styles.helpSection}>
           <Text style={styles.helpTitle}>Help & Support</Text>
           <TouchableOpacity 
