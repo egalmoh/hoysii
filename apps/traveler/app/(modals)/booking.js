@@ -1212,6 +1212,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FAFAFA',
+    ...Platform.select({ web: { width: '100%', minWidth: 0, maxWidth: '100%' } }),
   },
   headerWrapper: {
     shadowColor: '#000',
@@ -1261,6 +1262,7 @@ const styles = StyleSheet.create({
   },
   hotelInfo: {
     flex: 1,
+    ...Platform.select({ web: { minWidth: 0 } }),
     height: 119,
     justifyContent: 'space-between',
   },
@@ -1289,8 +1291,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#E4E9E8',
     borderRadius: 16.5,
     alignSelf: 'flex-start',
+    ...Platform.select({ web: { maxWidth: '100%' } }),
   },
   verifiedText: {
+    ...Platform.select({ web: { flexShrink: 1, minWidth: 0 } }),
     fontSize: 10,
     lineHeight: 12,
     color: '#6B7280',
@@ -1298,7 +1302,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   divider: {
-    width: 500,
+    width: Platform.OS === 'web' ? '100%' : 500,
     height: 0.5,
     backgroundColor: '#6B728075',
     alignSelf: 'center',
@@ -1321,6 +1325,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
     height: 39,
+    ...Platform.select({ web: { height: 'auto', minHeight: 39, gap: 16 } }),
   },
   detailInfo: {
     flexDirection: 'column',
@@ -1328,6 +1333,7 @@ const styles = StyleSheet.create({
     gap: 5,
     width: 109,
     height: 39,
+    ...Platform.select({ web: { flex: 1, width: 'auto', minWidth: 0, height: 'auto' } }),
   },
   providerLogo: {
     width: 90,
@@ -1358,8 +1364,10 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_300Light',
     fontWeight: '300',
     width: 250,
+    ...Platform.select({ web: { width: '100%' } }),
   },
   editButton: {
+    ...Platform.select({ web: { flexShrink: 0 } }),
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1419,6 +1427,7 @@ const styles = StyleSheet.create({
   cancellationPolicyText: {
     width: '100%',
     height: 18,
+    ...Platform.select({ web: { height: 'auto', minHeight: 18 } }),
     fontSize: 12,
     lineHeight: 14,
     color: '#111827',
@@ -1453,18 +1462,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 15,
+    ...Platform.select({ web: { flex: 1, minWidth: 0 } }),
   },
   paymentMethodIconWrapper: {
     width: 90,
     height: 70,
     alignItems: 'center',
     justifyContent: 'center',
+    ...Platform.select({ web: { flexShrink: 0, overflow: 'hidden' } }),
   },
   paymentMethodLogo: {
     width: 80,
     height: 80,
+    ...Platform.select({ web: { height: 56 } }),
   },
   paymentMethodName: {
+    ...Platform.select({ web: { flexShrink: 1, minWidth: 0 } }),
     fontSize: 14,
     fontWeight: '700',
     fontFamily: 'Inter_700Bold',

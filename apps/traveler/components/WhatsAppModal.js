@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Modal, Pressable, KeyboardAvoidingView, Platform, TextInput, FlatList, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Modal, Pressable, KeyboardAvoidingView, Platform, TextInput, FlatList, ScrollView, useWindowDimensions } from 'react-native';
 // import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useUser } from '../lib/auth';
 import { Feather } from '@expo/vector-icons';
@@ -66,6 +66,24 @@ export default function WhatsAppModal({ visible, onClose, onSuccess }) {
   const insets = useSafeAreaInsets();
   const { user } = useUser();
   const { height: SCREEN_HEIGHT } = useWindowDimensions();
+  const [webViewport, setWebViewport] = useState(null);
+
+  // Mobile browsers resize the visible viewport when the keyboard opens.
+  // Keep the sheet inside that area without moving or widening the page behind it.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !visible || !window.visualViewport) return;
+    const viewport = window.visualViewport;
+    const updateViewport = () => setWebViewport({ height: viewport.height, top: viewport.offsetTop });
+    updateViewport();
+    viewport.addEventListener('resize', updateViewport);
+    viewport.addEventListener('scroll', updateViewport);
+    return () => {
+      viewport.removeEventListener('resize', updateViewport);
+      viewport.removeEventListener('scroll', updateViewport);
+    };
+  }, [visible]);
+
+  const SheetContent = Platform.OS === 'web' ? ScrollView : View;
   
   const [phoneNumber, setPhoneNumber] = useState('');
   const [selectedCountry, setSelectedCountry] = useState(COUNTRIES[0]); // Default to Somalia
@@ -168,13 +186,19 @@ export default function WhatsAppModal({ visible, onClose, onSuccess }) {
       statusBarTranslucent
     >
       <KeyboardAvoidingView 
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={[styles.container, Platform.OS === 'web' && webViewport && {
+          position: 'absolute', top: webViewport.top, height: webViewport.height, width: '100%',
+        }]}
+        behavior={Platform.OS === 'web' ? undefined : Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <Pressable style={styles.backdrop} onPress={handleClose} />
         
         <Animated.View style={[styles.modalContent, animatedStyle, { paddingBottom: insets.bottom + 24 }]}>
-          <View style={styles.content}>
+          <SheetContent
+            {...(Platform.OS === 'web'
+              ? { style: styles.sheetScroll, contentContainerStyle: styles.content, keyboardShouldPersistTaps: 'handled' }
+              : { style: styles.content })}
+          >
             <View style={styles.inputSection}>
               <Text style={styles.label}>WhatsApp Number</Text>
               
@@ -220,7 +244,7 @@ export default function WhatsAppModal({ visible, onClose, onSuccess }) {
                 <Text style={styles.nextButtonText}>Next</Text>
               )}
             </TouchableOpacity>
-          </View>
+          </SheetContent>
         </Animated.View>
         
         {/* Country Picker Modal */}
@@ -291,6 +315,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 10,
     elevation: 10,
+    ...Platform.select({ web: { width: '100%', maxWidth: '100%', maxHeight: '100%', flexShrink: 1, minHeight: 0 } }),
+  },
+  sheetScroll: {
+    flexGrow: 0,
+    flexShrink: 1,
+    minHeight: 0,
+    width: '100%',
   },
   content: {
     alignItems: 'center',
@@ -311,8 +342,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    ...Platform.select({ web: { width: '100%', minWidth: 0 } }),
   },
   countryButton: {
+    ...Platform.select({ web: { flexShrink: 0 } }),
     flexDirection: 'row',
     alignItems: 'center',
     height: 50,
@@ -333,12 +366,13 @@ const styles = StyleSheet.create({
   },
   phoneInput: {
     flex: 1,
+    ...Platform.select({ web: { width: 0, minWidth: 0 } }),
     height: 50,
     borderWidth: 1,
     borderColor: 'rgba(107, 114, 128, 0.5)',
     borderRadius: 10,
     paddingHorizontal: 16,
-    fontSize: 14,
+    fontSize: Platform.OS === 'web' ? 16 : 14,
     color: '#111827',
     backgroundColor: '#FFFFFF',
     fontFamily: 'Inter_400Regular',

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -202,11 +202,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 15,
+    ...Platform.select({ web: { flex: 1, minWidth: 0 } }),
   },
   iconWrapper: {
     paddingTop: 30,
     alignItems: 'center',
     justifyContent: 'center',
+    ...Platform.select({ web: { paddingTop: 0, width: 90, height: 70, flexShrink: 0, overflow: 'hidden' } }),
     
   },
   cardIconsRow: {
@@ -221,14 +223,17 @@ const styles = StyleSheet.create({
   providerLogo: {
     width: 90,
     height: 90,
+    ...Platform.select({ web: { height: 56 } }),
   },
   methodName: {
+    ...Platform.select({ web: { flexShrink: 1, minWidth: 0 } }),
     fontSize: 14,
     fontWeight: '700',
     fontFamily: 'Inter_700Bold',
     color: '#111827',
   },
   radioButton: {
+    ...Platform.select({ web: { flexShrink: 0 } }),
     width: 24,
     height: 24,
     borderRadius: 12,
