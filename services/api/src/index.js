@@ -1,8 +1,10 @@
-import { createAdminAuth, createAuth, sendAuthEmail } from './auth.js';
+import { createAdminAuth, createAuth, createPartnerAuth, partnerOrigins, travelerOrigins, sendAuthEmail } from './auth.js';
 import { all, db, first, run } from './db.js';
 import { ACTIVE_BOOKING_FILTER, addDays, citySearchTerms, roomAvailable, unavailableDates } from './availability.js';
 import { createBooking, policyFor, policyUpdate, travelerBooking, validRange, validatePolicy } from './booking-service.js';
 import { adminOperations, processJobs, travelerOperations } from './operations.js';
+
+import { adminFeatures, partnerRoutes, publicReviews, saveProfile, travelerFeatures } from './product-features.js';
 
 const json = (body, status = 200) => Response.json(body, { status });
 const cents = (value) => Math.round(Number(value) * 100);
@@ -52,7 +54,14 @@ function booking(row, internal = false) {
 
 function cors(request, env) {
   const origin = request.headers.get('origin');
-  const trusted = (env.TRUSTED_ORIGINS || '').split(',').map((s) => s.trim());
+  const pathname = new URL(request.url).pathname;
+  const configured = (env.TRUSTED_ORIGINS || '').split(',').map((s) => s.trim());
+  const trusted = pathname.startsWith('/v1/partner/') || pathname.startsWith('/api/partner-auth/')
+    ? partnerOrigins(env)
+    : pathname.startsWith('/v1/admin/') || pathname.startsWith('/api/admin-auth/')
+      ? configured.filter((s) => s.startsWith('https://admin.') || s.startsWith('http://localhost:'))
+      : pathname.startsWith('/v1/me') || pathname.startsWith('/v1/bookings') || pathname === '/v1/trips' || pathname.startsWith('/api/auth/')
+        ? travelerOrigins(env) : configured;
   return {
     ...(origin && trusted.includes(origin) ? { 'Access-Control-Allow-Origin': origin } : {}),
     'Access-Control-Allow-Credentials': 'true',
@@ -269,10 +278,14 @@ async function publicRoutes(request, env, url) {
 }
 
 async function userRoutes(request, env, url) {
-  if (!['/v1/me', '/v1/trips', '/v1/bookings'].includes(url.pathname) && !url.pathname.startsWith('/v1/bookings/')) return null;
+  if (!['/v1/me', '/v1/me/reviews', '/v1/me/saved-hotels', '/v1/trips', '/v1/bookings'].includes(url.pathname) && !url.pathname.startsWith('/v1/me/saved-hotels/') && !url.pathname.startsWith('/v1/bookings/')) return null;
   const auth = await requireUser(request, env);
   if (auth.response) return auth.response;
+  const origin = request.headers.get('origin');
+  if (origin && !travelerOrigins(env).includes(origin)) return error('A trusted traveler app origin is required.', 403);
   const database = db(env);
+  const feature = await travelerFeatures(request, env, url, auth.user);
+  if (feature) return feature;
   const operation = await travelerOperations(request, env, url, auth.user);
   if (operation) return operation;
 
@@ -282,10 +295,7 @@ async function userRoutes(request, env, url) {
   }
   if (request.method === 'PATCH' && url.pathname === '/v1/me') {
     const body = await request.json();
-    const fullName = typeof body.full_name === 'string' ? body.full_name.trim() : auth.user.name;
-    const phone = typeof body.phone_number === 'string' ? body.phone_number.trim() : null;
-    await run(database, 'INSERT INTO profiles (user_id, full_name, phone_number) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET full_name = excluded.full_name, phone_number = COALESCE(excluded.phone_number, profiles.phone_number), updated_at = CURRENT_TIMESTAMP', auth.user.id, fullName, phone);
-    return json({ ok: true });
+    return saveProfile(env, auth.user, body);
   }
   if (request.method === 'GET' && url.pathname === '/v1/trips') {
     const records = await all(database, `SELECT b.*, rf.status AS refund_status, rf.amount_cents AS refund_amount_cents, h.name AS hotel_name, h.city AS hotel_city, h.address AS hotel_address, h.images AS hotel_images, h.starting_price_cents AS hotel_starting_price_cents, r.name AS room_name, r.price_cents AS room_price_cents, r.images AS room_images FROM bookings b JOIN hotels h ON h.id = b.hotel_id JOIN rooms r ON r.id = b.room_id LEFT JOIN refunds rf ON rf.booking_id=b.id WHERE b.user_id = ?`, auth.user.id);
@@ -365,11 +375,12 @@ async function adminRoutes(request, env, url) {
   const database = db(env);
 
   if (request.method === 'GET' && url.pathname === '/v1/admin/session') return json({ user: auth.user });
-  if (!['GET', 'HEAD'].includes(request.method)) {
-    const origin = request.headers.get('origin');
-    const adminOrigins = (env.TRUSTED_ORIGINS || '').split(',').map((value) => value.trim()).filter((value) => value.startsWith('https://admin.') || value.startsWith('http://localhost:'));
-    if (!origin || !adminOrigins.includes(origin)) return error('A trusted admin origin is required.', 403);
-  }
+  const origin = request.headers.get('origin');
+  const adminOrigins = (env.TRUSTED_ORIGINS || '').split(',').map((value) => value.trim()).filter((value) => value.startsWith('https://admin.') || value.startsWith('http://localhost:'));
+  if ((origin && !adminOrigins.includes(origin)) || (!origin && !['GET','HEAD'].includes(request.method))) return error('A trusted admin origin is required.', 403);
+
+  const feature = await adminFeatures(request, env, url, auth.user);
+  if (feature) return feature;
   const operation = await adminOperations(request, env, url, auth.user);
   if (operation) return operation;
   if (request.method === 'GET' && url.pathname === '/v1/admin/hotels') {
@@ -482,6 +493,12 @@ async function adminRoutes(request, env, url) {
     return result.meta?.changes ? json({ ok: true }) : error('Room not found.', 404);
   }
   if (request.method === 'POST' && url.pathname === '/v1/admin/media') {
+    return uploadMedia(request, env, url);
+  }
+  return null;
+}
+
+async function uploadMedia(request, env, url) {
     if (!env.HOTEL_MEDIA) return error('R2 HOTEL_MEDIA binding is not configured.', 503);
     const form = await request.formData();
     const file = form.get('file');
@@ -490,8 +507,6 @@ async function adminRoutes(request, env, url) {
     const key = `hotels/${crypto.randomUUID()}.${types[file.type]}`;
     await env.HOTEL_MEDIA.put(key, file.stream(), { httpMetadata: { contentType: file.type } });
     return json({ url: `${url.origin}/v1/media/${key}` }, 201);
-  }
-  return null;
 }
 
 export default {
@@ -499,6 +514,12 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(request, env) });
     const url = new URL(request.url);
     try {
+      if (url.pathname.startsWith('/api/partner-auth/')) {
+        if (!env.PARTNER_AUTH_SECRET) return withCors(error('Hotel portal sign in is not configured yet.', 503), request, env);
+        let failure;
+        const response = await createPartnerAuth(env, { onEmailSendFailure(cause) { failure = cause; } }).handler(request);
+        return withCors(failure ? json({ code: 'EMAIL_SEND_FAILED', message: 'We could not send your hotel portal code. Please try again.' }, 502) : response, request, env);
+      }
       if (url.pathname.startsWith('/api/admin-auth')) {
         if (url.pathname.startsWith('/api/admin-auth/sign-up/')) return withCors(error('Admin signup is private.', 403), request, env);
         return withCors(await createAdminAuth(env).handler(request), request, env);
@@ -519,7 +540,7 @@ export default {
         return withCors(response, request, env);
       }
       if (url.pathname === '/health') return withCors(json({ ok: true }), request, env);
-      const response = await adminSetupRoutes(request, env, url) || await publicRoutes(request, env, url) || await userRoutes(request, env, url) || await adminRoutes(request, env, url) || error('Not found.', 404);
+      const response = await adminSetupRoutes(request, env, url) || await publicReviews(request, env, url) || await publicRoutes(request, env, url) || await partnerRoutes(request, env, url, uploadMedia) || await userRoutes(request, env, url) || await adminRoutes(request, env, url) || error('Not found.', 404);
       return withCors(response, request, env);
     } catch (cause) {
       if (/NOT NULL constraint failed: booking_activity.note/.test(cause.message || '')) return withCors(error('This booking changed. Refresh it before trying again.', 409), request, env);

@@ -6,6 +6,8 @@ import { api } from '../lib/api';
 import { ActivityIndicator } from 'react-native';
 import { useState, useEffect } from 'react';
 import HotelCard from '../components/HotelCard';
+import SearchFilters from '../components/SearchFilters';
+import { filterHotels } from '../lib/search-filters';
 import SearchModal from '../components/SearchModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -40,6 +42,8 @@ export default function SearchResultsScreen() {
   const adults = parseInt(adultsParam, 10) || 1;
   const children = parseInt(childrenParam, 10) || 0;
 
+  const [filters, setFilters] = useState({});
+  const [filterVisible, setFilterVisible] = useState(false);
   const [loading, setLoading] = useState(true);
   const [hotels, setHotels] = useState([]);
   const [headerHeight, setHeaderHeight] = useState(0);
@@ -131,7 +135,8 @@ export default function SearchResultsScreen() {
 
   const adultsLabel = `${adults} Adult${adults > 1 ? 's' : ''}`;
 
-  const filteredHotels = hotels;
+  const filteredHotels = filterHotels(hotels, filters);
+  const amenities = [...new Set(hotels.flatMap(hotel => hotel.amenities || []))].sort();
 
   const resultsCardWidth = Math.min(400, width - insets.left - insets.right - 40);
   const resultsCardHeight = Math.round(resultsCardWidth * (399 / 400));
@@ -193,8 +198,8 @@ export default function SearchResultsScreen() {
                 </TouchableOpacity>
               </Animated.View>
             </Animated.View>
-            <Animated.View style={[styles.sideSlot, rightSlotStyle]} pointerEvents="none" accessible={false} accessibilityElementsHidden>
-              <Feather name="filter" size={24} color="transparent" />
+            <Animated.View style={[styles.sideSlot, rightSlotStyle]} pointerEvents={searchBarExpanded ? 'none' : 'auto'}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Filters and sorting" onPress={() => setFilterVisible(true)} style={styles.iconButton}><Feather name="filter" size={24} color="#6B7280" /></TouchableOpacity>
             </Animated.View>
           </View>
         </LinearGradient>
@@ -217,7 +222,7 @@ export default function SearchResultsScreen() {
            </View>
         ) : filteredHotels.length === 0 ? (
            <View style={{ marginTop: 50 }}>
-             <Text style={{ color: '#6B7280' }}>{checkIn && checkOut ? 'No rooms available for those dates. Try other dates.' : `No hotels found in ${locationName || 'this area'}.`}</Text>
+             <Text style={{ color: '#6B7280' }}>{hotels.length > 0 ? 'No hotels match these filters. Adjust or clear your filters.' : checkIn && checkOut ? 'No rooms available for those dates. Try other dates.' : `No hotels found in ${locationName || 'this area'}.`}</Text>
            </View>
         ) : (
         filteredHotels.map((hotel, index) => (
@@ -235,6 +240,7 @@ export default function SearchResultsScreen() {
           </View>
         )))}
       </ScrollView>
+      {filterVisible && <SearchFilters value={filters} amenities={amenities} onClose={() => setFilterVisible(false)} onApply={value => { setFilters(value); setFilterVisible(false); }} />}
       <SearchModal
         visible={searchModalVisible}
         currentStep={currentStep}

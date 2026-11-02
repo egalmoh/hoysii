@@ -1,14 +1,15 @@
 # Hoysii
 
-This repository keeps the traveler app, admin panel, and API together as separate projects. Each has its own dependencies, lockfile, build, and deployment. They communicate through the API; they do not share admin and traveler sessions.
+This repository keeps the traveler app, admin panel, hotel portal, and API together as separate projects. Each has its own dependencies, lockfile, build, and deployment. They communicate through the API; they do not share traveler, admin or partner sessions.
 
 | Project | Source | Runs as |
 | --- | --- | --- |
 | Traveler app | `apps/traveler/` | Expo on iOS/Android; `hoysii-web` Cloudflare Worker for web |
 | Admin panel | `apps/admin/` | Next.js on the `hoysii-admin` Cloudflare Worker |
+| Hotel partner portal | `apps/partners/` | Next.js on a new `hoysii-partners` Worker (owner must connect Git hosting) |
 | API | `services/api/` | `hoysii-api` Cloudflare Worker, with D1 and R2 |
 
-The hotel partner portal is planned for `apps/partners/` when it is implemented. Shared packages can be added under `packages/` when there is code worth sharing. The projects currently install independently because the Expo app and Next.js admin use different React versions; there is no root npm workspace or shared lockfile yet.
+The basic hotel partner portal is implemented under `apps/partners/`. Its production Worker/domain/Git connection and independent auth secret require owner setup; see [current MVP and release steps](docs/MVP_SYSTEMS.md). Shared packages can be added under `packages/` when there is code worth sharing. The projects currently install independently because the Expo app and Next.js admin use different React versions; there is no root npm workspace or shared lockfile yet.
 
 ## Local development
 
@@ -17,6 +18,7 @@ Run commands inside the relevant project directory:
 ```sh
 cd apps/traveler && npm install && npm start
 cd apps/admin && npm install && npm run dev
+cd apps/partners && npm ci && npm run dev
 cd services/api && npm install && npm run dev
 ```
 

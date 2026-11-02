@@ -42,7 +42,7 @@ When provider APIs arrive, implement their documented initiation, verification a
 ## Hotel acknowledgement and exceptions
 
 - Payment starts a 30-minute hotel acknowledgement deadline and queues reservation details for the hotel's configured email plus an operations alert.
-- Admin records acknowledgement or decline with a note. A future partner portal can use the same data and state transition rules; the portal itself remains in `later.md`.
+- Admin or an assigned hotel partner records acknowledgement or decline with a note. The basic portal in `apps/partners` uses the same state transitions with hotel-specific permissions. See `MVP_SYSTEMS.md` for migration 0006 and portal release steps.
 - The scheduled handler raises an overdue exception, expires unpaid holds and retries queued notifications. Missing hotel contact details and exhausted delivery attempts are visible as exceptions.
 - Operations can assign an exception, add notes, record the hotel's response, arrange a replacement at the customer's agreed total/terms, or cancel and start the refund workflow. Replacement should first be agreed with the traveler.
 - Admin operations shows today's check-ins/check-outs, acknowledgement deadlines, open exceptions and refunds requiring action. Times use `Africa/Mogadishu`.

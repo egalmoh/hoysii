@@ -1,5 +1,7 @@
 # Hoysii Operations
 
+> Launch scope updated 1 November 2026: `MVP_SYSTEMS.md` and AGENTS.md take precedence over the broader future journey described below. Flights, airport transfers, drivers and other parked services are not launch work. Customer support uses WhatsApp; traveler confirmation is immediate after recorded payment, with hotel acknowledgement handled internally.
+
 ## Operating principle
 **Automate normal cases. Humans handle exceptions.**
 

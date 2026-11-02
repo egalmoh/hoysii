@@ -7,6 +7,8 @@ import Animated from 'react-native-reanimated';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { api } from '../../lib/api';
 import { ActivityIndicator } from 'react-native';
+import SaveHotelButton from '../../components/SaveHotelButton';
+import HotelReviews from '../../components/HotelReviews';
 import AvailableRoomCard from '../../components/AvailableRoomCard';
 import { hotelOffers, isHotelVerified } from '../../lib/hotel-display';
 
@@ -244,6 +246,7 @@ export default function ListingScreen() {
               <View style={styles.divider} />
             </View>
 
+            <SaveHotelButton hotelId={hotelId} />
             {/* What this hotel offers */}
             {offers.length > 0 && <View style={styles.offersSection}>
               <Text style={styles.offersTitle}>What this hotel offers?</Text>
@@ -277,6 +280,7 @@ export default function ListingScreen() {
               ))}
             </View>
           </View>
+          <HotelReviews hotelId={hotelId} />
         </View>
       </View>
       

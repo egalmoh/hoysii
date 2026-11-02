@@ -217,7 +217,7 @@ export default function CreateHotel() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/" className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-gray-800 transition-colors">
+            <Link href="/hotels" className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-gray-800 transition-colors">
               <ArrowLeft className="w-6 h-6" />
             </Link>
             <div>

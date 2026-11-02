@@ -1,18 +1,18 @@
 # Later
 
-This is the parking list for work outside the launch focus: safe, reliable hotel booking. An item moves out of this list only after an explicit product decision.
+This is the parking list for work outside the launch focus: safe, reliable hotel booking. An item moves out of this list only after an explicit product decision. On 1 November 2026, the owner activated the basic partner portal, reviews, saved hotels, basic profile settings, search filters/sorting and consolidated admin overview. Those are tracked in `MVP_SYSTEMS.md`, not parked here.
 
 ## Public surfaces
 
-- Marketing website beyond the initial landing, About, and Contact/Support pages
+- A separate marketing website beyond the traveler web app, About and Contact/Support pages
 - SEO destination guides and broader acquisition pages
 - Referrals, promo codes, creator tools, and loyalty features
 
 ## Partner and operations products
 
-- Hotel partner portal for rates, availability, reservations, and property management
 - Automated hotel payouts and marketplace settlement
-- Hotel performance reporting
+- Advanced hotel performance reporting
+- Internal customer support-ticket system beyond WhatsApp
 - Driver coordinator and driver-facing tools
 
 ## Arrival and transport
@@ -24,8 +24,7 @@ This is the parking list for work outside the launch focus: safe, reliable hotel
 
 ## Traveler-app additions
 
-- Reviews and rebooking
-- Saved stays
+- One-tap rebooking
 - Additional destinations beyond the initial launch market
 - Reliable, verified serviced apartments and longer stays
 

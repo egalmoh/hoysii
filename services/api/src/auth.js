@@ -9,6 +9,10 @@ function trustedOrigins(env) {
   return (env.TRUSTED_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean);
 }
 
+export function travelerOrigins(env) {
+  return trustedOrigins(env).filter((origin) => !origin.startsWith('https://admin.') && !partnerOrigins(env).includes(origin));
+}
+
 export async function appleClientSecret(clientId, teamId, keyId, privateKeyPem) {
   const privateKey = await importPKCS8(privateKeyPem.replace(/\\n/g, '\n'), 'ES256');
   const now = Math.floor(Date.now() / 1000);
@@ -42,7 +46,7 @@ export function createAuth(env, { onEmailSendFailure } = {}) {
     baseURL: env.BETTER_AUTH_URL,
     secret: env.BETTER_AUTH_SECRET,
     trustedOrigins: [
-      ...trustedOrigins(env),
+      ...travelerOrigins(env),
       ...(socialProviders.apple ? ['https://appleid.apple.com'] : []),
     ],
     database: db(env),
@@ -141,4 +145,46 @@ export async function sendAuthEmail(env, to, subject, text) {
   if (!env.SEND_EMAIL) throw new Error('The SEND_EMAIL binding is not configured.');
   const from = env.AUTH_EMAIL_FROM || 'no-reply@auth.hoysii.com';
   await env.SEND_EMAIL.send({ from, to, subject, text });
+}
+
+export function partnerOrigins(env) {
+  // Exact configured origins only; never derive authorization from a hostname prefix.
+  return [env.PARTNER_PANEL_URL, ...(env.PARTNER_LOCAL_ORIGINS || '').split(',')].map((s) => s?.trim()).filter(Boolean);
+}
+
+export function createPartnerAuth(env, { onEmailSendFailure } = {}) {
+  if (!env.PARTNER_AUTH_SECRET) throw new Error('The PARTNER_AUTH_SECRET is not configured.');
+  const membership = (email) => first(db(env), 'SELECT id FROM partner_memberships WHERE email=? COLLATE NOCASE AND active=1 LIMIT 1', email);
+  return betterAuth({
+    baseURL: env.BETTER_AUTH_URL,
+    basePath: '/api/partner-auth',
+    secret: env.PARTNER_AUTH_SECRET,
+    trustedOrigins: partnerOrigins(env),
+    database: db(env),
+    user: { modelName: 'partner_user' },
+    session: { modelName: 'partner_session' },
+    account: { modelName: 'partner_account' },
+    verification: { modelName: 'partner_verification' },
+    advanced: { cookiePrefix: 'hoysii-partner' },
+    databaseHooks: {
+      user: { create: { async before(user) {
+        if (!await membership(user.email)) throw APIError.from('FORBIDDEN', { message: 'A hotel invitation is required.' });
+      } } },
+      session: { create: { async before(session) {
+        const user = await first(db(env), 'SELECT email FROM partner_user WHERE id=?', session.userId);
+        if (!user || !await membership(user.email)) throw APIError.from('FORBIDDEN', { message: 'Hotel access is not active. Contact Hoysii.' });
+      } } },
+    },
+    emailAndPassword: { enabled: true, minPasswordLength: 12, requireEmailVerification: true, revokeSessionsOnPasswordReset: true },
+    emailVerification: { sendOnSignUp: false, sendOnSignIn: true, autoSignInAfterVerification: true },
+    plugins: [emailOTP({
+      overrideDefaultEmailVerification: true, disableSignUp: true, storeOTP: 'encrypted', resendStrategy: 'reuse',
+      expiresIn: 900, allowedAttempts: 5, rateLimit: { window: 60, max: 3 },
+      async sendVerificationOTP({ email, otp, type }) {
+        try {
+          await sendAuthEmail(env, email, `Your Hoysii hotel portal code: ${otp}`, `Your hotel portal code to ${type === 'forget-password' ? 'reset your password' : 'verify your email'} is ${otp}. It expires in 15 minutes. This code is only for the hotel partner portal.`);
+        } catch (cause) { if (onEmailSendFailure) onEmailSendFailure(cause); else throw cause; }
+      },
+    })],
+  });
 }

@@ -1,6 +1,8 @@
+import { useCallback, useState } from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet, ScrollView, Linking } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useAuth, useUser } from '../../lib/auth';
+import { apiFetch } from '../../lib/api';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -9,6 +11,13 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { isSignedIn, signOut } = useAuth();
   const { user } = useUser();
+  const [profile, setProfile] = useState(null);
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    if (isSignedIn) apiFetch('/v1/me').then(data => { if (active) setProfile(data.profile); }).catch(() => { if (active) setProfile(null); });
+    else setProfile(null);
+    return () => { active = false; };
+  }, [isSignedIn, user?.id]));
 
   const handleSignOut = async () => {
     try {
@@ -86,9 +95,9 @@ export default function ProfileScreen() {
           
           <View style={styles.userInfo}>
             <Text style={styles.userName}>
-              {user?.firstName && user?.lastName 
+              {profile?.full_name || (user?.firstName && user?.lastName
                 ? `${user.firstName} ${user.lastName}`
-                : user?.firstName || 'User'}
+                : user?.firstName || 'User')}
             </Text>
             <Text style={styles.userEmail}>
               {user?.emailAddresses?.[0]?.emailAddress || ''}
@@ -107,37 +116,17 @@ export default function ProfileScreen() {
 
         {/* Menu Items */}
         <View style={styles.menuSection}>
-          {/* <TouchableOpacity style={styles.menuItem} activeOpacity={0.7}>
-            <View style={styles.menuItemLeft}>
-              <Feather name="user" size={20} color="#374151" />
-              <Text style={styles.menuItemText}>Personal Information</Text>
-            </View>
+          <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => router.push('/(modals)/profile-settings')}>
+            <View style={styles.menuItemLeft}><Feather name="user" size={20} color="#374151" /><Text style={styles.menuItemText}>Profile settings</Text></View>
             <Feather name="chevron-right" size={20} color="#9CA3AF" />
           </TouchableOpacity>
-
-          <TouchableOpacity style={styles.menuItem} activeOpacity={0.7}>
-            <View style={styles.menuItemLeft}>
-              <Feather name="credit-card" size={20} color="#374151" />
-              <Text style={styles.menuItemText}>Payment Methods</Text>
-            </View>
-            <Feather name="chevron-right" size={20} color="#9CA3AF" />
-          </TouchableOpacity> */}
-
-          <TouchableOpacity style={styles.menuItem} activeOpacity={0.7}>
-            <View style={styles.menuItemLeft}>
-              <Feather name="bell" size={20} color="#374151" />
-              <Text style={styles.menuItemText}>Notifications</Text>
-            </View>
+          <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => router.push('/(modals)/saved-hotels')}>
+            <View style={styles.menuItemLeft}><Feather name="heart" size={20} color="#374151" /><Text style={styles.menuItemText}>Saved hotels</Text></View><Feather name="chevron-right" size={20} color="#9CA3AF" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => router.push('/(modals)/reviews')}>
+            <View style={styles.menuItemLeft}><Feather name="star" size={20} color="#374151" /><Text style={styles.menuItemText}>Your reviews</Text></View>
             <Feather name="chevron-right" size={20} color="#9CA3AF" />
           </TouchableOpacity>
-
-          {/* <TouchableOpacity style={styles.menuItem} activeOpacity={0.7}>
-            <View style={styles.menuItemLeft}>
-              <Feather name="help-circle" size={20} color="#374151" />
-              <Text style={styles.menuItemText}>Help & Support</Text>
-            </View>
-            <Feather name="chevron-right" size={20} color="#9CA3AF" />
-          </TouchableOpacity> */}
         </View>
 
         {/* Help & Support Section */}

@@ -11,3 +11,7 @@ APPLE_TEAM_ID=
 APPLE_KEY_ID=
 APPLE_PRIVATE_KEY=
 APPLE_APP_BUNDLE_IDENTIFIER=com.anonymous.hoysii
+
+PARTNER_AUTH_SECRET=replace-with-a-third-independent-random-secret-at-least-32-characters
+PARTNER_PANEL_URL=http://localhost:3001
+PARTNER_LOCAL_ORIGINS=http://localhost:3001

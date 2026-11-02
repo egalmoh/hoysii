@@ -3,7 +3,7 @@
 Hoysii is a diaspora-first accommodation booking platform for travelers going to Somalia.
 
 ## Core journey
-Discover → Search → Compare → Book → Confirm → Add Flight → Prepare → Arrive → Airport Transfer → Check-in → Stay → Review / Rebook
+Discover → Search → Compare → Book → Confirm → Check-in → Stay → Review
 
 ## Main product surfaces
 1. Public website / SEO
@@ -14,9 +14,9 @@ Discover → Search → Compare → Book → Confirm → Add Flight → Prepare 
 ## Current tech stack
 - JavaScript and JSX for product code; React 19 and React Native 0.81.
 - Expo SDK 54 for the traveler app on iOS, Android, and web, with Expo Router 6 routes under `apps/traveler/app/`.
-- Next.js 16 for the admin panel under `apps/admin/`, deployed through OpenNext on its own Cloudflare Worker.
+- Next.js 16 for the admin panel under `apps/admin/` and hotel portal under `apps/partners/`, each built through OpenNext for its own Cloudflare Worker.
 - A separate Cloudflare API Worker under `services/api/` provides traveler and admin routes, D1 data, and R2 hotel media.
-- Better Auth uses separate traveler and admin accounts, sessions, cookies, and secrets. The traveler app uses Expo SecureStore for its session.
+- Better Auth uses separate traveler, admin and hotel-partner accounts, sessions, cookies, and secrets. Hotel access requires an active account-to-hotel assignment on every partner API request. The traveler app uses Expo SecureStore for its session.
 - React Native Web for the traveler web target.
 - React Native `StyleSheet` and the Inter font for the current UI styling.
 - React Native Reanimated and Lottie for motion and animation.
@@ -59,9 +59,8 @@ Start narrow, with Mogadishu as the first major destination.
 - Checkout + payment
 - Booking confirmation
 - Trip page
-- Flight number + date
-- Airport pickup
-- Driver details including vehicle and license plate
+- Basic profile settings and saved hotels
+- Filters and sorting
 - Support
 - Reviews
 
@@ -70,23 +69,33 @@ Start narrow, with Mogadishu as the first major destination.
 - Bookings
 - Arrivals
 - Hotels
-- Transfers
 - Customers
 - Payments
 - Exceptions
 
 ## Hotel portal MVP
-- Reservations
-- Availability
-- Rooms
-- Property profile
+- Partner invitation, separate sign-in and account-to-hotel assignments
+- Reservations and internal acknowledgement within 30 minutes
+- Rooms, nightly rates, unit counts and inventory blocks
+- Property profile, amenities, photos and stay times
+- Check-in / check-out updates
+- Viewing manually recorded payout status
+
+## Current launch boundaries
+- Keep the existing admin Verified checkbox/badges; the owner checks them during hotel onboarding. Do not add hotel inspections or a separate Hoysii Verified subsystem.
+- Customer support stays on WhatsApp. Do not add a support-ticket system for launch.
+- Preserve the existing mock-payment screen preview until provider APIs arrive. It creates no saved reservation, payment, Trip or hotel/admin record.
+- A real recorded payment confirms the traveler immediately. Hotel acknowledgement remains internal; a decline or overdue response creates an operations issue without changing the customer confirmation flow.
+- Reviews require an owned, saved, paid confirmed/checked-in/completed booking. No review can be created from a mock preview.
+- Flights, airport pickup, drivers, apartments and experiences remain in `docs/later.md`.
+- Read `docs/MVP_SYSTEMS.md` for the implemented interfaces, scope and owner release steps.
 
 ## Current repo structure
 ```text
 apps/
   traveler/
   admin/
-  partners/ (later)
+  partners/
 services/
   api/
 packages/
