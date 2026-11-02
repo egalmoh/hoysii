@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { View, Text, TouchableOpacity, Image, StyleSheet, ScrollView, Linking } from 'react-native';
+import { View, Text, TouchableOpacity, Image, StyleSheet, ScrollView, Linking, Platform } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useAuth, useUser } from '../../lib/auth';
 import { apiFetch } from '../../lib/api';
@@ -165,6 +165,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FAFAFA',
+    ...Platform.select({ web: { width: '100%', maxWidth: 760, alignSelf: 'center' } }),
   },
   scrollView: {
     flex: 1,
@@ -362,6 +363,7 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     paddingHorizontal: 25,
     width: 320,
+    ...Platform.select({ web: { maxWidth: '100%' } }),
     height: 75,
     gap: 10,
   },

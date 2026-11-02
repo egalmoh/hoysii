@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Image, ScrollView, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import Animated, { FadeIn } from 'react-native-reanimated';
@@ -8,9 +8,12 @@ import SaveHotelButton from './SaveHotelButton';
 const CARD_WIDTH = 280;
 const CARD_HEIGHT = 280;
 
-export default function HotelCard({ hotel, index, cardWidth = CARD_WIDTH, cardHeight = CARD_HEIGHT, onPress }) {
+export default function HotelCard({ hotel, index, cardWidth = CARD_WIDTH, cardHeight = CARD_HEIGHT, onPress, compact = false }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef(null);
+  useEffect(() => {
+    if (compact) scrollRef.current?.scrollTo({ x: activeIndex * cardWidth, animated: false });
+  }, [cardWidth, compact]);
 
   const handleScroll = (event) => {
     const scrollPosition = event.nativeEvent.contentOffset.x;
@@ -32,11 +35,12 @@ export default function HotelCard({ hotel, index, cardWidth = CARD_WIDTH, cardHe
 
   return (
     <Animated.View 
-      entering={FadeIn.delay(index * 700).duration(700)}
+      entering={FadeIn.delay(index * (compact ? 60 : 700)).duration(compact ? 250 : 700)}
       style={[styles.container, { width: cardWidth }]}
     >
       {/* Image Container */}
       <View style={[styles.imageContainer, { width: cardWidth, height: cardHeight }]}>
+        {!hotel.images?.length && <TouchableOpacity accessibilityRole="button" accessibilityLabel={`View ${hotel.name}`} onPress={onPress} style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#E5E7EB' }]}><Feather name="home" size={24} color="#6B7280" /></TouchableOpacity>}
         {/* Scrollable Images */}
         <ScrollView
           ref={scrollRef}
@@ -71,6 +75,10 @@ export default function HotelCard({ hotel, index, cardWidth = CARD_WIDTH, cardHe
         </ScrollView>
 
         <SaveHotelButton hotelId={hotel.id} />
+        {compact && isHotelVerified(hotel) && <View style={styles.compactVerified}>
+          <MaterialCommunityIcons name="shield-check" size={14} color="#489CFC" />
+          <Text style={styles.compactVerifiedText}>Verified</Text>
+        </View>}
 
         {/* Left Arrow */}
         {activeIndex > 0 && (
@@ -112,10 +120,12 @@ export default function HotelCard({ hotel, index, cardWidth = CARD_WIDTH, cardHe
         onPress={onPress}
         disabled={!onPress}
         style={styles.infoContainer}
+        accessibilityRole={compact ? 'button' : undefined}
+        accessibilityLabel={compact ? `View ${hotel.name}` : undefined}
       >
         {/* Left Side - Name, Location, Price */}
         <View style={styles.infoLeft}>
-          <Text style={styles.hotelName} numberOfLines={1}>{hotel.name}</Text>
+          <Text style={[styles.hotelName, compact && styles.compactName]} numberOfLines={1}>{hotel.name}</Text>
           <Text style={styles.address} numberOfLines={1}>
             {hotel.city}
           </Text>
@@ -129,7 +139,7 @@ export default function HotelCard({ hotel, index, cardWidth = CARD_WIDTH, cardHe
         </View>
 
         {/* Right Side - Verified Badge */}
-        {isHotelVerified(hotel) && (
+        {!compact && isHotelVerified(hotel) && (
           <View style={styles.verifiedBadgeContainer}>
             <View style={styles.verifiedBadge}>
               <MaterialCommunityIcons name="shield-check" size={18} color="#489CFC" />
@@ -264,4 +274,7 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontFamily: 'Inter_700Bold',
   },
+  compactName: { fontSize: 15, lineHeight: 21, fontFamily: 'Inter_500Medium', fontWeight: '500' },
+  compactVerified: { position: 'absolute', top: 16, left: 12, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.95)' },
+  compactVerifiedText: { fontFamily: 'Inter_500Medium', fontSize: 11, color: '#374151' },
 });

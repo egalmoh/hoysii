@@ -218,7 +218,7 @@ export default function BookingReview() {
   const hotelName = params.hotelName;
   const roomType = params.roomName || 'Room';
   const hotelImageUri = params.hotelImage;
-  const roomImageUri = params.roomImage;
+  const roomImageUri = params.roomImage || params.hotelImage;
   const hotelAddress = params.location || params.address || 'Address not available';
 
 
@@ -1212,7 +1212,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FAFAFA',
-    ...Platform.select({ web: { width: '100%', minWidth: 0, maxWidth: '100%' } }),
+    ...Platform.select({ web: { width: '100%', minWidth: 0, maxWidth: 800, alignSelf: 'center' } }),
   },
   headerWrapper: {
     shadowColor: '#000',

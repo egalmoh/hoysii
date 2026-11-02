@@ -10,6 +10,7 @@ import Animated, {
 import { Feather } from '@expo/vector-icons';
 import { Calendar } from 'react-native-calendars';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useWebLayout } from '../lib/use-web-layout';
 
 const POPULAR_PLACES = [
   {
@@ -30,6 +31,10 @@ const POPULAR_PLACES = [
     region: 'Nugaal',
     image: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=200&h=200&fit=crop',
   },
+  { id: 5, name: 'Bosaso', region: 'Bari' },
+  { id: 6, name: 'Galkacyo', region: 'Mudug' },
+  { id: 7, name: 'Berbera', region: 'Sahil' },
+  { id: 8, name: 'Borama', region: 'Awdal' },
 ];
 
 export default function SearchModal({
@@ -43,6 +48,7 @@ export default function SearchModal({
   onCompleteSearch,
   headerHeight,
 }) {
+  const { wide, width } = useWebLayout();
   const [containerHeight, setContainerHeight] = useState(0);
   const [searchText, setSearchText] = useState('');
   const [selectedPlace, setSelectedPlace] = useState(null);
@@ -243,11 +249,11 @@ export default function SearchModal({
               selectedPlace?.id === place.id && styles.placeItemSelected
             ]}
           >
-            <Image
+            {place.image ? <Image
               source={{ uri: place.image }}
               style={styles.placeImage}
               resizeMode="cover"
-            />
+            /> : <View style={[styles.placeImage, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#EDF5FE' }]}><Feather name="map-pin" size={24} color="#489CFC" /></View>}
             <Text style={styles.placeName}>
               {place.name}, {place.region}
             </Text>
@@ -384,7 +390,7 @@ export default function SearchModal({
       </Animated.View>
 
       {/* Modal Content */}
-      <Animated.View style={[styles.modal, animatedStyle, {
+      <Animated.View style={[styles.modal, animatedStyle, wide && { left: (width - 520) / 2, right: undefined, width: 520 }, {
         top: headerHeight + 8,
         maxHeight: Math.max(0, containerHeight - headerHeight - 20),
       }]} pointerEvents="auto">

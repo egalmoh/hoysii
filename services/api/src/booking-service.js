@@ -1,4 +1,4 @@
-import { stakeholderTesting } from './testing.js';
+import { stakeholderTesting, hotelVisible } from './testing.js';
 import { all, db, first } from './db.js';
 import { insertBookingSql, PAYMENT_HOLD_MINUTES } from './availability.js';
 
@@ -102,6 +102,7 @@ export async function createBooking(env, user, body, key) {
   if (!room) reject('Room not found.', 404);
   if (adults > room.capacity_adults) reject('This room cannot accommodate that many adults.');
   const hotel = await first(database, 'SELECT * FROM hotels WHERE id=?', room.hotel_id);
+  if (!hotelVisible(hotel, env)) reject('Room not found.', 404);
   const nights = (Date.parse(body.check_out_date) - Date.parse(body.check_in_date)) / 86400000;
   const base = room.price_cents * nights;
   const serviceFee = Math.round(base * 0.1); // Matches the existing checkout's 10% fee.

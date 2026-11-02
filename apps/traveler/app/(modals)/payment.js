@@ -141,6 +141,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FAFAFA',
+    ...Platform.select({ web: { width: '100%', maxWidth: 800, alignSelf: 'center' } }),
   },
   headerWrapper: {
   },

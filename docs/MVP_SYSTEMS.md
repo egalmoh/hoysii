@@ -12,6 +12,8 @@ The owner explicitly approved the three product screenshots and their annotation
 
 The existing admin Verified checkbox and badges remain. No inspections workflow or separate Hoysii Verified subsystem is added. Property edits in the partner portal cannot set verification, rating or cancellation terms. Support stays on WhatsApp.
 
+The owner-requested 15-hotel stakeholder catalog is prepared separately in [HOTEL_CATALOG.md](HOTEL_CATALOG.md), with 30 simulated room types and checked source photos. Its properties are test-only, unverified, hidden outside server testing mode, and require the owner's schema/media/data import after the matching Git deployments. The traveler desktop header uses the supplied branded wordmark.
+
 ## Accounts and hotel assignments
 
 A hotel assignment connects an invited partner email to a hotel ID. Example: `manager@example.com → Hotel A`. The same partner may have several assignments, but every hotel, reservation, room, block and payout request is checked against active assignments. Hotel A access never implies Hotel B access. Changing access revokes partner sessions immediately.
@@ -63,6 +65,8 @@ Search filters operate on the API's returned matching hotels after date/guest av
 ## Owner release steps — no manual Codex deployment
 
 ### Traveler web installation (PWA)
+
+At web widths of 768px and above, the traveler app uses one shared header with Hoysii branding, centered destination/date/guest search, and Trips/Profile navigation on the same row. It adds no host links or category navigation. Explore and search results use compact square hotel cards in responsive columns, with the existing recommended carousel and Popular Stays inventory. Search editing opens the same modal at a bounded desktop width. Hotel details, checkout, payments, confirmation, Trips and profile use readable content widths. Below 768px the existing mobile navigation/search layout remains; native iOS/Android retain their original layout. These are presentation changes only: availability, rates, cancellation rules, authentication and stakeholder payment behaviour are unchanged.
 
 The traveler web export includes a manifest, home-screen icons from the existing Hoysii brand mark, Apple home-screen metadata and a web-only **Install Hoysii** option on the Profile/Log in tab. Supporting Android/desktop browsers show their native install prompt when available; iPhone/iPad users receive Share → Add to Home Screen instructions. The option disappears in an installed standalone window. Native iOS/Android layouts remain unchanged.
 

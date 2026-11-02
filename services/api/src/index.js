@@ -1,4 +1,5 @@
-import { stakeholderTesting } from './testing.js';
+import { stakeholderTesting, hotelVisible, hotelRetired } from './testing.js';
+import { recommendationOrder } from './recommendations.js';
 import { createAdminAuth, createAuth, createPartnerAuth, partnerOrigins, travelerOrigins, sendAuthEmail } from './auth.js';
 import { all, db, first, run } from './db.js';
 import { activeBookingFilter, addDays, citySearchTerms, roomAvailable, unavailableDates } from './availability.js';
@@ -19,14 +20,16 @@ function list(value) {
 
 function hotel(row) {
   if (!row) return null;
+  const recommendedOrder = recommendationOrder(row);
   // Public responses must not inherit manager contacts or future internal columns.
   return {
     id: row.id, name: row.name, city: row.city, location: row.city,
     description: row.description, google_map_link: row.google_map_link,
     starting_price_cents: row.starting_price_cents, starting_price: dollars(row.starting_price_cents),
-    is_verified: Boolean(row.is_verified), address: list(row.address), images: list(row.images),
+    is_verified: Boolean(row.is_verified), stakeholder_only: Boolean(row.stakeholder_only), address: list(row.address), images: list(row.images),
     amenities: list(row.amenities), payment_methods: list(row.payment_methods), security_features: list(row.security_features),
-    rating: row.rating, created_at: row.created_at, updated_at: row.updated_at,
+    rating: row.rating, is_recommended: recommendedOrder !== null, recommended_order: recommendedOrder,
+    created_at: row.created_at, updated_at: row.updated_at,
     check_in_time: row.check_in_time, check_out_time: row.check_out_time,
     cancellation_policy: row.cancellation_policy, free_cancellation_hours: row.free_cancellation_hours,
     cancellation_penalty_percent: row.cancellation_penalty_percent,
@@ -182,7 +185,7 @@ async function adminSetupRoutes(request, env, url) {
 
 async function publicRoutes(request, env, url) {
   const database = db(env);
-  if (request.method === 'GET' && url.pathname === '/v1/config') return json({ stakeholder_testing: stakeholderTesting(env) });
+  if (request.method === 'GET' && url.pathname === '/v1/config') return json({ stakeholder_testing: stakeholderTesting(env), stakeholder_catalog: true });
   if (request.method === 'GET' && url.pathname === '/v1/hotels') {
     const stay = stayFilter(url);
     if (stay.error) return stay.error;
@@ -191,6 +194,7 @@ async function publicRoutes(request, env, url) {
     let records = city
       ? await all(database, `SELECT * FROM hotels WHERE ${cityTerms.map(() => 'city LIKE ? COLLATE NOCASE').join(' OR ')} ORDER BY is_verified DESC, rating DESC, name`, ...cityTerms.map((term) => `%${term}%`))
       : await all(database, 'SELECT * FROM hotels ORDER BY is_verified DESC, rating DESC, name');
+    records = records.filter(item => hotelVisible(item, env));
     if (stay.dates) {
       const adults = Number(url.searchParams.get('adults') || 1);
       if (!Number.isInteger(adults) || adults < 1 || adults > 20) return error('Guest count is invalid.');
@@ -211,8 +215,9 @@ async function publicRoutes(request, env, url) {
   if (request.method === 'GET' && hotelMatch) {
     const stay = stayFilter(url);
     if (stay.error) return stay.error;
-    const property = hotel(await first(database, 'SELECT * FROM hotels WHERE id = ?', hotelMatch[1]));
-    if (!property) return error('Hotel not found.', 404);
+    const record = await first(database, 'SELECT * FROM hotels WHERE id = ?', hotelMatch[1]);
+    if (!hotelVisible(record, env)) return error('Hotel not found.', 404);
+    const property = hotel(record);
     let rooms = await all(database, 'SELECT * FROM rooms WHERE hotel_id = ? ORDER BY price_cents', hotelMatch[1]);
     if (stay.dates) {
       const adults = Number(url.searchParams.get('adults') || 1);
@@ -233,11 +238,13 @@ async function publicRoutes(request, env, url) {
     const adults = Number(url.searchParams.get('adults') || 1);
     if (!Number.isInteger(adults) || adults < 1 || adults > 20) return error('Guest count is invalid.');
     const cityTerms = city ? citySearchTerms(city) : [];
-    const rooms = roomId
+    let rooms = roomId
       ? await all(database, 'SELECT * FROM rooms WHERE id = ? AND capacity_adults >= ?', roomId, adults)
       : city
         ? await all(database, `SELECT r.* FROM rooms r JOIN hotels h ON h.id = r.hotel_id WHERE (${cityTerms.map(() => 'h.city LIKE ? COLLATE NOCASE').join(' OR ')}) AND r.capacity_adults >= ?`, ...cityTerms.map((term) => `%${term}%`), adults)
         : await all(database, 'SELECT * FROM rooms WHERE capacity_adults >= ?', adults);
+    const visibleHotels = new Set((await all(database, 'SELECT id,stakeholder_only FROM hotels')).filter(item => hotelVisible(item, env)).map(item => item.id));
+    rooms = rooms.filter(item => visibleHotels.has(item.hotel_id));
     const bookings = await overlappingBookings(database, from, addDays(to, 1), stakeholderTesting(env));
     return json({ unavailable_dates: unavailableDates(rooms, bookings, from, to) });
   }
@@ -248,6 +255,7 @@ async function publicRoutes(request, env, url) {
     if (stay.error || !stay.dates) return stay.error || error('Choose check-in and check-out dates.');
     const selected = await first(database, 'SELECT * FROM rooms WHERE id = ?', availabilityMatch[1]);
     if (!selected) return error('Room not found.', 404);
+    if (!hotelVisible(await first(database, 'SELECT * FROM hotels WHERE id=?', selected.hotel_id), env)) return error('Room not found.', 404);
     const bookings = await overlappingBookings(database, stay.dates.checkIn, stay.dates.checkOut, stakeholderTesting(env));
     return json({ available: roomAvailable(selected, bookings, stay.dates.checkIn, stay.dates.checkOut) });
   }
@@ -260,6 +268,7 @@ async function publicRoutes(request, env, url) {
     const selected = await first(database, 'SELECT * FROM rooms WHERE id=?', quoteMatch[1]);
     if (!selected) return error('Room not found.', 404);
     const property = await first(database, 'SELECT * FROM hotels WHERE id=?', selected.hotel_id);
+    if (!hotelVisible(property, env)) return error('Room not found.', 404);
     const nights = (Date.parse(checkOut) - Date.parse(checkIn)) / 86400000;
     const base = selected.price_cents * nights;
     const fee = Math.round(base * 0.1);
@@ -386,7 +395,7 @@ async function adminRoutes(request, env, url) {
   const operation = await adminOperations(request, env, url, auth.user);
   if (operation) return operation;
   if (request.method === 'GET' && url.pathname === '/v1/admin/hotels') {
-    return json((await all(database, 'SELECT * FROM hotels ORDER BY created_at DESC')).map(adminHotel));
+    return json((await all(database, 'SELECT * FROM hotels ORDER BY created_at DESC')).filter(item => !hotelRetired(item.id)).map(adminHotel));
   }
   if (request.method === 'GET' && url.pathname === '/v1/admin/users') {
     return json(await travelerList(database));
@@ -448,6 +457,7 @@ async function adminRoutes(request, env, url) {
     const item = hotelValues(body);
     const policy = validatePolicy(body);
     const hotelId = body.id || crypto.randomUUID();
+    if (hotelRetired(hotelId)) return error('This test hotel has been retired.', 409);
     const statements = [database.prepare(`INSERT INTO hotels (id, name, city, address, google_map_link, description, starting_price_cents, images, amenities, manager_phone, manager_email, manager_name, is_verified, rating, payment_methods, security_features) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(hotelId, ...Object.values(item))];
     for (const roomBody of body.rooms || []) {
       if (!validRoom(roomBody)) return error('Each room needs a name, positive rate, valid guest capacity, and room quantity.');
@@ -460,7 +470,7 @@ async function adminRoutes(request, env, url) {
   const hotelMatch = url.pathname.match(/^\/v1\/admin\/hotels\/([^/]+)$/);
   if (hotelMatch && request.method === 'GET') {
     const property = adminHotel(await first(database, 'SELECT * FROM hotels WHERE id = ?', hotelMatch[1]));
-    if (!property) return error('Hotel not found.', 404);
+    if (!property || hotelRetired(property.id)) return error('Hotel not found.', 404);
     const rooms = await all(database, 'SELECT * FROM rooms WHERE hotel_id = ? ORDER BY price_cents', hotelMatch[1]);
     return json({ hotel: property, rooms: rooms.map(room) });
   }

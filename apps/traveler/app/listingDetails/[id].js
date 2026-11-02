@@ -11,11 +11,14 @@ import SaveHotelButton from '../../components/SaveHotelButton';
 import HotelReviews from '../../components/HotelReviews';
 import AvailableRoomCard from '../../components/AvailableRoomCard';
 import { hotelOffers, isHotelVerified } from '../../lib/hotel-display';
+import { useWebLayout } from '../../lib/use-web-layout';
 
 export default function ListingScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  const { width, height } = useWindowDimensions();
+  const { width: windowWidth, height } = useWindowDimensions();
+  const { wide } = useWebLayout();
+  const width = wide ? Math.min(1120, windowWidth - 64) : windowWidth;
   const insets = useSafeAreaInsets();
 
   const hotelId = String(Array.isArray(id) ? id[0] : id);
@@ -32,6 +35,9 @@ export default function ListingScreen() {
   const [loading, setLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef(null);
+  useEffect(() => {
+    if (wide) scrollRef.current?.scrollTo({ x: activeIndex * width, animated: false });
+  }, [width, wide]);
 
   useEffect(() => {
     let active = true;
@@ -88,7 +94,7 @@ export default function ListingScreen() {
     );
   }
 
-  const IMAGE_HEIGHT = Math.round(width * (451 / 440));
+  const IMAGE_HEIGHT = wide ? Math.min(560, Math.round(width * 0.5)) : Math.round(width * (451 / 440));
 
 
 
@@ -142,7 +148,7 @@ export default function ListingScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, wide && { width, alignSelf: 'center' }]}>
       <StatusBar style="light" />
       {Platform.OS !== 'web' && navigationHeader}
       <ScrollView 
@@ -154,6 +160,7 @@ export default function ListingScreen() {
       >
         {/* Scrollable hotel images */}
         <View style={[styles.imageWrapper, { width, height: IMAGE_HEIGHT }]}>
+        {!hotel.images?.length && <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#E5E7EB' }]}><Feather name="home" size={36} color="#6B7280" /><Text style={{ color: '#6B7280', marginTop: 8 }}>Hotel photo coming soon</Text></View>}
         {Platform.OS === 'web' && navigationHeader}
         <Animated.ScrollView
           ref={scrollRef}

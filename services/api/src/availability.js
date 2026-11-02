@@ -5,6 +5,15 @@ const CITY_ALIASES = {
   muqdisho: ['Moqadisho', 'Mogadishu', 'Muqdisho'],
   hargeysa: ['Hargeysa', 'Hargeisa'],
   hargeisa: ['Hargeysa', 'Hargeisa'],
+  bosaso: ['Bosaso', 'Bossaso', 'Boosaaso'],
+  bossaso: ['Bosaso', 'Bossaso', 'Boosaaso'],
+  boosaaso: ['Bosaso', 'Bossaso', 'Boosaaso'],
+  galkacyo: ['Galkacyo', 'Gaalkacyo', 'Galkaio', 'Galkacayo'],
+  gaalkacyo: ['Galkacyo', 'Gaalkacyo', 'Galkaio', 'Galkacayo'],
+  galkaio: ['Galkacyo', 'Gaalkacyo', 'Galkaio', 'Galkacayo'],
+  galkacayo: ['Galkacyo', 'Gaalkacyo', 'Galkaio', 'Galkacayo'],
+  borama: ['Borama', 'Boorama'],
+  boorama: ['Borama', 'Boorama'],
 };
 
 export function citySearchTerms(city) {

@@ -1,0 +1,595 @@
+{
+  "researched_at": "2026-11-02",
+  "purpose": "Owner-requested stakeholder hotel catalog. All room names, rates and quantities are simulated; this is not a live room allocation or a hotel partnership claim.",
+  "hotels": [
+    {
+      "id": "catalog-jowhara-mogadishu",
+      "name": "Jowhara International Hotel",
+      "city": "Mogadishu",
+      "address": [
+        "Off Afgoye Road",
+        "Hodan District",
+        "Mogadishu"
+      ],
+      "description": "Hotel in Hodan District with accommodation and dining facilities.",
+      "amenities": [
+        "Restaurant"
+      ],
+      "contact": {
+        "phone": "+252613700100",
+        "email": "info@jowharahotel.so"
+      },
+      "sources": [
+        "https://jowharahotel.so/",
+        "https://jowharahotel.so/rooms-list"
+      ],
+      "photos": [
+        {
+          "url": "https://jowharahotel.so/jeftoack/2023/03/BQLD1650-scaled-2340x1320.jpg",
+          "source": "https://jowharahotel.so/",
+          "caption": "Hotel exterior",
+          "r2_key": "hotels/1892c1200360b5e19e727321c7ceb6276c0b5936ea2e13a3990313e5c2780146.jpg",
+          "file": "stakeholder-hotel-media/1892c1200360b5e19e727321c7ceb6276c0b5936ea2e13a3990313e5c2780146.jpg"
+        },
+        {
+          "url": "https://jowharahotel.so/jeftoack/2023/03/IMG-20191225-WA0010.jpg",
+          "source": "https://jowharahotel.so/",
+          "caption": "Guest room",
+          "r2_key": "hotels/c70ef5fbda8c4f80e24b774d2b81e1ce680e2c3f532165b0ec2a7b9b07486b5f.jpg",
+          "file": "stakeholder-hotel-media/c70ef5fbda8c4f80e24b774d2b81e1ce680e2c3f532165b0ec2a7b9b07486b5f.jpg"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "id": "catalog-amara-mogadishu",
+      "name": "Amara Hotel",
+      "city": "Mogadishu",
+      "address": [
+        "Marina Gate",
+        "Aden Adde International Airport area",
+        "Mogadishu"
+      ],
+      "description": "Airport-area hotel offering rooms and suites, conference facilities and dining.",
+      "amenities": [
+        "Free WiFi",
+        "Air Conditioning",
+        "Fitness Center",
+        "Restaurant",
+        "Room Service"
+      ],
+      "contact": {
+        "phone": "+252772200022",
+        "email": "info@amarahotel.so"
+      },
+      "sources": [
+        "https://amarahotel.so/"
+      ],
+      "photos": [
+        {
+          "url": "https://amarahotel.so/wp-content/uploads/2025/10/DSC09794-scaled.jpg",
+          "source": "https://amarahotel.so/",
+          "caption": "Property gallery",
+          "r2_key": "hotels/946d5065239428d4ee78f7d5796a48155b6d3e01a790cbca859d350c77f8e097.jpg",
+          "file": "stakeholder-hotel-media/946d5065239428d4ee78f7d5796a48155b6d3e01a790cbca859d350c77f8e097.jpg"
+        },
+        {
+          "url": "https://amarahotel.so/wp-content/uploads/2025/10/DSC09911-scaled.jpg",
+          "source": "https://amarahotel.so/",
+          "caption": "Property gallery",
+          "r2_key": "hotels/baf6aa3c7734b4f3a94c2babf05b4710f6bf478df1a2f8affaa6ecbf30c8c0ca.jpg",
+          "file": "stakeholder-hotel-media/baf6aa3c7734b4f3a94c2babf05b4710f6bf478df1a2f8affaa6ecbf30c8c0ca.jpg"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "id": "catalog-grand-plaza-mogadishu",
+      "name": "Grand Plaza Hotel",
+      "city": "Mogadishu",
+      "address": [
+        "Grand Tower",
+        "Taleh Junction",
+        "Mogadishu"
+      ],
+      "description": "Hotel and restaurant at Taleh Junction with single, double and family accommodation and event halls.",
+      "amenities": [
+        "Restaurant",
+        "Conference Facilities"
+      ],
+      "contact": {},
+      "sources": [
+        "https://grandplazahotel.so/"
+      ],
+      "photos": [
+        {
+          "url": "https://grandplazahotel.so/assets/herogallery.jpeg",
+          "source": "https://grandplazahotel.so/",
+          "caption": "Hotel exterior",
+          "r2_key": "hotels/8045666a35aacc3dea1b6ebaed9db57e1cc1d1c26dea87a082e9eca15eca6032.jpg",
+          "file": "stakeholder-hotel-media/8045666a35aacc3dea1b6ebaed9db57e1cc1d1c26dea87a082e9eca15eca6032.jpg"
+        },
+        {
+          "url": "https://grandplazahotel.so/assets/singleroom1.jpeg",
+          "source": "https://grandplazahotel.so/",
+          "caption": "Single room",
+          "r2_key": "hotels/7b0ebae41eca2cdacc2787c0bc990e1428487da3d5c5ae1a3a016532f802ed08.jpg",
+          "file": "stakeholder-hotel-media/7b0ebae41eca2cdacc2787c0bc990e1428487da3d5c5ae1a3a016532f802ed08.jpg"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "id": "catalog-lana-mogadishu",
+      "name": "Lana Business Park",
+      "city": "Mogadishu",
+      "address": [
+        "Airport Road / Jaale Siyaad Road",
+        "Mogadishu"
+      ],
+      "description": "Business accommodation with rooms and suites, dining and meeting spaces in Mogadishu's airport area.",
+      "amenities": [
+        "Free WiFi",
+        "Air Conditioning",
+        "Gym",
+        "Restaurant",
+        "Conference Facilities"
+      ],
+      "contact": {
+        "phone": "+252614964491"
+      },
+      "sources": [
+        "https://www.lanabusinesspark.com/",
+        "https://www.linkedin.com/company/lanebusinesspark"
+      ],
+      "photos": [
+        {
+          "url": "https://www.lanabusinesspark.com/wp-content/uploads/2024/12/room5.jpg",
+          "source": "https://www.lanabusinesspark.com/",
+          "caption": "Room",
+          "r2_key": "hotels/c0f177409a26da6f9c380aade3de4142b4e4fa2cd7af8838bfef99dd53491224.jpg",
+          "file": "stakeholder-hotel-media/c0f177409a26da6f9c380aade3de4142b4e4fa2cd7af8838bfef99dd53491224.jpg"
+        },
+        {
+          "url": "https://www.lanabusinesspark.com/wp-content/uploads/2024/12/executive-suite.jpg",
+          "source": "https://www.lanabusinesspark.com/",
+          "caption": "Executive suite",
+          "r2_key": "hotels/5a29ccdaf2fad714e6ff3a1ad56983775b846adb7bc31aec4eb706b7b05b461b.jpg",
+          "file": "stakeholder-hotel-media/5a29ccdaf2fad714e6ff3a1ad56983775b846adb7bc31aec4eb706b7b05b461b.jpg"
+        }
+      ],
+      "notes": [
+        "The website contains unrelated spam. Only hotel-specific facts corroborated by the company's profile were retained; published rates were not imported."
+      ]
+    },
+    {
+      "id": "catalog-aven-premier-mogadishu",
+      "name": "Aven Premier International",
+      "city": "Mogadishu",
+      "address": [
+        "Mogadishu International Airport area",
+        "Mogadishu"
+      ],
+      "description": "Airport-area accommodation also known as API Hotel, with restaurant and conference services.",
+      "amenities": [
+        "Restaurant",
+        "Conference Facilities"
+      ],
+      "contact": {
+        "phone": "+252617962017",
+        "email": "info@avenpremier.com"
+      },
+      "sources": [
+        "https://avenpremier.com/docs/api-hotel.pdf",
+        "https://www.tripadvisor.ca/Hotel_Review-g294440-d14165416-Reviews-Aven_Premier_International-Mogadishu.html"
+      ],
+      "photos": [
+        {
+          "url": "https://dynamic-media-cdn.tripadvisor.com/media/photo-o/19/dd/c8/96/aven-premier-international.jpg?w=1200&s=1",
+          "source": "https://www.tripadvisor.com/Hotel_Feature-g294440-d14165416-zft6217-Aven_Premier_International.html",
+          "caption": "Pool",
+          "r2_key": "hotels/ba6a0a23cffddedc95214eb93aebb935a2f61c662049eff96b35fbfe107dc1fd.jpg",
+          "file": "stakeholder-hotel-media/ba6a0a23cffddedc95214eb93aebb935a2f61c662049eff96b35fbfe107dc1fd.jpg"
+        }
+      ],
+      "notes": [
+        "Official main website is under maintenance. Photo is a third-party research source, not a hotel-supplied media agreement."
+      ]
+    },
+    {
+      "id": "catalog-peace-mogadishu",
+      "name": "Peace Hotel",
+      "city": "Mogadishu",
+      "address": [
+        "Aden Adde International Airport area",
+        "Mogadishu"
+      ],
+      "description": "Airport-area accommodation within the Peace Business Group of Hotels, with dining and conference facilities.",
+      "amenities": [
+        "WiFi",
+        "Air Conditioning",
+        "Restaurant",
+        "Conference Facilities"
+      ],
+      "contact": {
+        "phone": "+252619494973",
+        "email": "reservations@peacebusinessgroup.com"
+      },
+      "sources": [
+        "https://www.peacehotelsom.com/",
+        "https://www.peacehotelsom.com/peace-hotel1"
+      ],
+      "photos": [
+        {
+          "url": "https://www.peacehotelsom.com/assets/images/accomodation-thumb.jpg",
+          "source": "https://www.peacehotelsom.com/",
+          "caption": "Guest room",
+          "r2_key": "hotels/798d6f4e5e6c058accbd591679d0f892fa927757f393e61c8426dc3c6f83343f.jpg",
+          "file": "stakeholder-hotel-media/798d6f4e5e6c058accbd591679d0f892fa927757f393e61c8426dc3c6f83343f.jpg"
+        },
+        {
+          "url": "https://www.peacehotelsom.com/assets/images/accomodation-thumb-new1.jpg",
+          "source": "https://www.peacehotelsom.com/",
+          "caption": "Guest room",
+          "r2_key": "hotels/ac20c25a4cb10a01f1b27f88c67dd9eaaaa40c769733f5816ed12ee87c57c2b8.jpg",
+          "file": "stakeholder-hotel-media/ac20c25a4cb10a01f1b27f88c67dd9eaaaa40c769733f5816ed12ee87c57c2b8.jpg"
+        }
+      ],
+      "notes": [
+        "The brand has multiple properties. Confirm the exact branch and its media allocation during onboarding."
+      ]
+    },
+    {
+      "id": "catalog-bosaso-airport-bosaso",
+      "name": "Bosaso Airport Hotel",
+      "city": "Bosaso",
+      "address": [
+        "Airport Road",
+        "Bosaso"
+      ],
+      "description": "Beachfront hotel by the Gulf of Aden with king and twin accommodation, dining and pool facilities.",
+      "amenities": [
+        "Free WiFi",
+        "Restaurant",
+        "Swimming Pool",
+        "Gym"
+      ],
+      "contact": {
+        "phone": "+252907013000",
+        "email": "Info.bah@flamingohotelsgroup.com"
+      },
+      "sources": [
+        "https://bosasoairporthotel.com/",
+        "https://www.linkedin.com/company/bosaso-airport-hotel"
+      ],
+      "photos": [
+        {
+          "url": "https://res.cloudinary.com/dv3i1dcqz/image/upload/q_auto/f_auto/v1776265386/WhatsApp_Image_2026-04-15_at_17.57.11_ehpb97.jpg",
+          "source": "https://bosasoairporthotel.com/",
+          "caption": "Twin room with sea view",
+          "r2_key": "hotels/cf6465d6b3831a3fa0b6d9677e33ed9196dcc1947d2d6456f6bd8ceaee2e9f0d.jpg",
+          "file": "stakeholder-hotel-media/cf6465d6b3831a3fa0b6d9677e33ed9196dcc1947d2d6456f6bd8ceaee2e9f0d.jpg"
+        },
+        {
+          "url": "https://res.cloudinary.com/dv3i1dcqz/image/upload/v1778392251/deluxe_king_room_pvuaev.png",
+          "source": "https://bosasoairporthotel.com/",
+          "caption": "Deluxe king room",
+          "r2_key": "hotels/ef29eaf143dba2b25435c882f50b960a4d0457bbe737a2a1746bcb57f3432472.jpg",
+          "file": "stakeholder-hotel-media/ef29eaf143dba2b25435c882f50b960a4d0457bbe737a2a1746bcb57f3432472.jpg"
+        }
+      ],
+      "notes": [
+        "Owner confirmed this is the requested Bosaso Beach Hotel. Excluded website assets explicitly named as AI-generated."
+      ]
+    },
+    {
+      "id": "catalog-jabir-bosaso",
+      "name": "Jabir Plaza Hotel",
+      "city": "Bosaso",
+      "address": [
+        "Airport Street",
+        "Bosaso"
+      ],
+      "description": "Hotel with accommodation, restaurant, cafe and event venues on Airport Street in Bosaso.",
+      "amenities": [
+        "Restaurant",
+        "Room Service",
+        "Conference Facilities"
+      ],
+      "contact": {
+        "phone": "+252907955555",
+        "email": "Jabirplazahotel@gmail.com"
+      },
+      "sources": [
+        "https://jabirplazahotel.com/"
+      ],
+      "photos": [
+        {
+          "url": "https://jabirplazahotel.com/photos/hotel/entrance.jpg",
+          "source": "https://jabirplazahotel.com/",
+          "caption": "Hotel entrance",
+          "r2_key": "hotels/ad27e216ecfb1301f92073a4449fbc4aa598652eeafc0aee41f1edc64581cadc.jpg",
+          "file": "stakeholder-hotel-media/ad27e216ecfb1301f92073a4449fbc4aa598652eeafc0aee41f1edc64581cadc.jpg"
+        },
+        {
+          "url": "https://jabirplazahotel.com/photos/rooms/double/beds.jpg",
+          "source": "https://jabirplazahotel.com/",
+          "caption": "Double room",
+          "r2_key": "hotels/5fd6905c1e39fbcb5b3625bf565652eae5b96e2ffe17972bc7d1cae874fbd099.jpg",
+          "file": "stakeholder-hotel-media/5fd6905c1e39fbcb5b3625bf565652eae5b96e2ffe17972bc7d1cae874fbd099.jpg"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "id": "catalog-elite-mogadishu",
+      "name": "Elite Hotel",
+      "city": "Mogadishu",
+      "address": [
+        "Liido Beach",
+        "Abdiaziz District",
+        "Mogadishu"
+      ],
+      "description": "Beachfront property at Liido Beach whose website describes dining, events, fitness and spa facilities.",
+      "amenities": [
+        "Restaurant",
+        "Gym",
+        "Spa",
+        "Conference Facilities"
+      ],
+      "contact": {},
+      "sources": [
+        "https://elitehotel.so/",
+        "https://eabd.co.ke/business/elite-hotel/",
+        "https://www.baidoaonline.com/news/mogadishu-s-elite-hotel-remains-under-security-lockdown-as-curfew-like-restrictions-cripple-lido-beach-economy"
+      ],
+      "photos": [
+        {
+          "url": "https://elitehotel.so/storage/2023/01/main-view.jpg",
+          "source": "https://elitehotel.so/",
+          "caption": "Hotel exterior",
+          "r2_key": "hotels/0fae55c975ce9cd889e806e6d5c0d28d2244c8705fde53913a09a9f29153e89c.jpg",
+          "file": "stakeholder-hotel-media/0fae55c975ce9cd889e806e6d5c0d28d2244c8705fde53913a09a9f29153e89c.jpg"
+        }
+      ],
+      "notes": [
+        "Operating status needs direct confirmation: a June 2026 report described closure. This entry is a stakeholder simulation only and does not assert current availability."
+      ]
+    },
+    {
+      "id": "catalog-cadduun-galkacyo",
+      "name": "Cadduun Hotel Galkacyo",
+      "city": "Galkacyo",
+      "address": [
+        "Galkacyo"
+      ],
+      "description": "Hotel accommodation and restaurant in Galkacyo. This is a separate property from Cadduun Hotel Plaza in Garowe.",
+      "amenities": [
+        "Restaurant"
+      ],
+      "contact": {},
+      "sources": [
+        "https://www.cadduunhotel.com/",
+        "https://somalijobs.com/jobs/galkacayo/8147457123498403/hospitality-manager",
+        "https://milgo.site/works.php"
+      ],
+      "photos": [
+        {
+          "url": "https://www.cadduunhotel.com/assets/b40572a0d08ff2d87bc382b984a6dbe9dc5569bb-BqVbPq8f.png",
+          "source": "https://www.cadduunhotel.com/",
+          "caption": "Twin room",
+          "status": "search_index_only_unreachable_during_check"
+        }
+      ],
+      "notes": [
+        "Correct Galkacyo photo found in image search, but origin could not be reached. Do not substitute the Garowe property's photos. Confirm street address, contacts and a usable image before onboarding."
+      ]
+    },
+    {
+      "id": "catalog-serene-sarovar-hargeisa",
+      "name": "Serene Sarovar Premiere Hargeisa",
+      "city": "Hargeisa",
+      "address": [
+        "East Masala",
+        "G3HH+HC6",
+        "Hargeisa"
+      ],
+      "description": "Hotel with rooms and suites, multiple dining venues, meeting spaces and leisure facilities in East Masala.",
+      "amenities": [
+        "Free WiFi",
+        "Restaurant",
+        "Gym",
+        "Spa",
+        "Swimming Pool",
+        "Conference Facilities"
+      ],
+      "contact": {
+        "phone": "+252639000018",
+        "email": "reservations@serenesarovarpremiere.com"
+      },
+      "sources": [
+        "https://www.sarovarhotels.com/serene-premiere-hargeisa/",
+        "https://www.sarovarhotels.com/serene-premiere-hargeisa/gallery.html"
+      ],
+      "photos": [
+        {
+          "url": "https://assets.simplotel.com/simplotel/image/upload/x_8%2Cy_769%2Cw_4072%2Ch_2288%2Cr_0%2Cc_crop%2Cq_80%2Cfl_progressive/w_900%2Cf_auto%2Cc_fit/serene-sarovar-premiere-hargeisa/Night_2_1bf6fec9",
+          "source": "https://www.sarovarhotels.com/serene-premiere-hargeisa/gallery.html",
+          "caption": "Hotel exterior at night",
+          "r2_key": "hotels/4bfd5630a5572b68af1b4daa85b32133672de535a8f35ba73801e11f402aa586.jpg",
+          "file": "stakeholder-hotel-media/4bfd5630a5572b68af1b4daa85b32133672de535a8f35ba73801e11f402aa586.jpg"
+        }
+      ],
+      "notes": [
+        "Corrected spelling from Sarover to Sarovar using the operator's website."
+      ]
+    },
+    {
+      "id": "catalog-jees-hargeisa",
+      "name": "Jees Hotel",
+      "city": "Hargeisa",
+      "address": [
+        "H27X+QW4",
+        "Hargeisa"
+      ],
+      "description": "Hargeisa hotel with single rooms, deluxe rooms and VIP suites, with a 24-hour reception.",
+      "amenities": [],
+      "contact": {
+        "phone": "+252638533333"
+      },
+      "sources": [
+        "https://jeeshotel.com/"
+      ],
+      "photos": [
+        {
+          "url": "https://jeeshotel.com/wp-content/uploads/2025/04/14-1-scaled-1.webp",
+          "source": "https://jeeshotel.com/",
+          "caption": "Property gallery",
+          "r2_key": "hotels/0df3ee28b29cda728085d18d6edece3e38d74f14600aba3b6266022b2f879018.jpg",
+          "file": "stakeholder-hotel-media/0df3ee28b29cda728085d18d6edece3e38d74f14600aba3b6266022b2f879018.jpg"
+        },
+        {
+          "url": "https://jeeshotel.com/wp-content/uploads/2025/04/8-scaled-67f7729377c83.webp",
+          "source": "https://jeeshotel.com/",
+          "caption": "Hotel exterior at night",
+          "r2_key": "hotels/0d6fb5466b2592e45d694f1760240b7e353bb99dd547475f718726477bbbd04a.jpg",
+          "file": "stakeholder-hotel-media/0d6fb5466b2592e45d694f1760240b7e353bb99dd547475f718726477bbbd04a.jpg"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "id": "catalog-damal-berbera",
+      "name": "Damal Hotel Berbera",
+      "city": "Berbera",
+      "address": [
+        "Suufi Hassan Road",
+        "Dahabshiil International Bank Building",
+        "Berbera"
+      ],
+      "description": "Hotel in central Berbera with a restaurant and room service.",
+      "amenities": [
+        "Restaurant",
+        "Room Service"
+      ],
+      "contact": {},
+      "sources": [
+        "https://www.tripadvisor.com/Hotel_Review-g2102054-d16709217-Reviews-Damal_Hotel-Berbera_Somaliland.html",
+        "https://soobooking.com/st_hotel/damal-hotel-berbera/"
+      ],
+      "photos": [
+        {
+          "url": "https://soobooking.com/wp-content/uploads/2026/06/damal.jpg",
+          "source": "https://soobooking.com/st_hotel/damal-hotel-berbera/",
+          "caption": "Damal brand logo",
+          "status": "excluded_logo_not_property_photo"
+        }
+      ],
+      "notes": [
+        "Third-party photo source. Do not use Damal Hargeisa's images for this Berbera property.",
+        "The accessible image was a brand logo, not a property photo; excluded from the listing. A confirmed Berbera photo is still needed."
+      ]
+    },
+    {
+      "id": "catalog-safari-borama",
+      "name": "Safari Resort & Convention Centre",
+      "city": "Borama",
+      "address": [
+        "Saylici Road",
+        "Borama"
+      ],
+      "description": "Resort and convention property in Borama with accommodation, dining and leisure facilities.",
+      "amenities": [
+        "Free WiFi",
+        "Restaurant",
+        "Gym",
+        "Spa",
+        "Swimming Pool",
+        "Parking"
+      ],
+      "contact": {
+        "phone": "+252674444444"
+      },
+      "sources": [
+        "https://www.booking.com/hotel/so/safari-and-resort.en-gb.html",
+        "https://www.google.com/travel/hotels/entity/ChkI8JeEj-P91bVKGg0vZy8xMXRzamdkamp0EAE",
+        "https://so.linkedin.com/in/safari-resort-and-convention-center-059697397"
+      ],
+      "photos": [
+        {
+          "url": "https://dynamic-media-cdn.tripadvisor.com/media/photo-o/30/c0/0d/8e/caption.jpg?w=1200&s=1",
+          "source": "https://www.tripadvisor.com.br/Hotel_Review-g13230351-d33367175-Reviews-Safari_Resort_and_Convention_Center-Borama_Awdal_Region.html",
+          "caption": "Resort aerial view",
+          "r2_key": "hotels/26319ac9da014057662840e269552550697fef88987882084c77f9ccc95b5bbd.jpg",
+          "file": "stakeholder-hotel-media/26319ac9da014057662840e269552550697fef88987882084c77f9ccc95b5bbd.jpg"
+        }
+      ],
+      "notes": [
+        "Third-party photo source. safariresortborama.com explicitly says it is unofficial and was not treated as the hotel's official website."
+      ]
+    },
+    {
+      "id": "catalog-decale-mogadishu",
+      "name": "Décalé Airport Hotel",
+      "city": "Mogadishu",
+      "address": [
+        "Aden Abdulle International Airport",
+        "Mogadishu"
+      ],
+      "description": "Airport-area hotel with rooms and suites, restaurant, cafe and meeting facilities.",
+      "amenities": [
+        "Free WiFi",
+        "Air Conditioning",
+        "Restaurant",
+        "Room Service",
+        "Conference Facilities"
+      ],
+      "contact": {
+        "phone": "+252613335559",
+        "email": "info@decalehotels.com"
+      },
+      "sources": [
+        "https://www.decalehotels.com/",
+        "https://www.decalehotels.com/contact",
+        "https://www.decalehotels.com/standard-room"
+      ],
+      "photos": [
+        {
+          "url": "https://www.decalehotels.com/images/b3587766-2b3a-4a34-a14b-0b99327e67f8.jpg",
+          "source": "https://www.decalehotels.com/standard-room",
+          "caption": "Standard room",
+          "r2_key": "hotels/fc40f1ce282cf2a1403fc87df95367b2f0faaf5fbde1383f2dbf005ba6aa207e.jpg",
+          "file": "stakeholder-hotel-media/fc40f1ce282cf2a1403fc87df95367b2f0faaf5fbde1383f2dbf005ba6aa207e.jpg"
+        },
+        {
+          "url": "https://www.decalehotels.com/images/decale-slider-1.jpg",
+          "source": "https://www.decalehotels.com/",
+          "caption": "Hotel property collage",
+          "r2_key": "hotels/e3b85e8380b12d41c66fe76d35aa58b370b8bee7b58c8807fb1e43414dc4a781.jpg",
+          "file": "stakeholder-hotel-media/e3b85e8380b12d41c66fe76d35aa58b370b8bee7b58c8807fb1e43414dc4a781.jpg"
+        }
+      ],
+      "notes": [
+        "Added at the owner’s request. Room categories, rates and quantities in Hoysii remain simulated for stakeholder testing only."
+      ]
+    }
+  ],
+  "simulation": {
+    "nightly_rates_usd": [
+      30,
+      50
+    ],
+    "unit_counts": [
+      5,
+      3
+    ],
+    "room_names": [
+      "Sample Double Room",
+      "Sample Family Room"
+    ],
+    "adult_capacities": [
+      2,
+      4
+    ]
+  }
+}

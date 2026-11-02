@@ -20,12 +20,19 @@ import PopularStayCard from '../../components/PopularStayCard';
 import WelcomePopup from '../../components/WelcomePopup';
 import SearchModal from '../../components/SearchModal';
 import { StatusBar } from 'expo-status-bar';
+import { useWebLayout } from '../../lib/use-web-layout';
+import { recommendedHotels as selectRecommendedHotels } from '../../lib/hotel-display';
 
 export default function ExploreScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { userId } = useAuth();
+  const webLayout = useWebLayout();
+  const { wide } = webLayout;
+  const recommendedRef = useRef(null);
+  const [recommendedOffset, setRecommendedOffset] = useState(0);
+  const [recommendedContentWidth, setRecommendedContentWidth] = useState(0);
   const padding = 40;
   const gap = 16;
   const cardWidth = Math.min(191, (width - padding - gap) / 2);
@@ -75,10 +82,7 @@ export default function ExploreScreen() {
     fetchHotels();
   }, [userId]); // Refetch when userId changes (e.g. login/logout)
 
-  // Filter hotels: verified AND rating >= 4.5
-  const recommendedHotels = hotels.filter(
-    (hotel) => hotel.rating >= 4.5
-  );
+  const recommendedHotels = selectRecommendedHotels(hotels);
 
   // Scroll tracking
   const lastScrollY = useRef(0);
@@ -139,11 +143,11 @@ export default function ExploreScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, wide && { backgroundColor: '#FFFFFF' }]}>
       <StatusBar style="dark" />
       
       {/* Header with Gradient */}
-      <View
+      {!wide && <View
         style={styles.headerWrapper}
         onLayout={({ nativeEvent }) => setHeaderHeight(nativeEvent.layout.height)}
       >
@@ -247,26 +251,38 @@ export default function ExploreScreen() {
           </View>
         </Animated.View>
         </LinearGradient>
-      </View>
+      </View>}
 
       {/* Main Content Area */}
       <ScrollView 
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, wide && { width: webLayout.contentWidth, alignSelf: 'center', paddingTop: 38, paddingBottom: 64 }]}
         showsVerticalScrollIndicator={false}
         onScroll={handleScroll}
         scrollEventThrottle={16}
       >
         {/* Recommended Section */}
         <View style={styles.recommendedSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recommended by hoysii</Text>
+          <View style={[styles.sectionHeader, wide && { paddingHorizontal: 0 }]}>
+            <Text style={[styles.sectionTitle, wide && styles.desktopSectionTitle]}>Recommended by hoysii</Text>
+            {wide && <View style={{ flexDirection: 'row', gap: 8 }}>
+              {[-1, 1].map(direction => {
+                const disabled = direction < 0 ? recommendedOffset < 2 : recommendedOffset >= recommendedContentWidth - webLayout.contentWidth - 2;
+                return <TouchableOpacity key={direction} accessibilityRole="button" accessibilityLabel={direction < 0 ? 'Previous recommended hotels' : 'Next recommended hotels'} disabled={disabled}
+                  style={[styles.rowArrow, disabled && { opacity: 0.3 }]} onPress={() => recommendedRef.current?.scrollTo({ x: Math.max(0, Math.min(recommendedContentWidth - webLayout.contentWidth, recommendedOffset + direction * webLayout.contentWidth)), animated: true })}>
+                  <Feather name={direction < 0 ? 'chevron-left' : 'chevron-right'} size={18} color="#374151" />
+                </TouchableOpacity>;
+              })}
+            </View>}
           </View>
 
           <Animated.ScrollView 
+            ref={recommendedRef}
+            onScroll={wide ? event => setRecommendedOffset(event.nativeEvent.contentOffset.x) : undefined}
+            onContentSizeChange={wide ? width => setRecommendedContentWidth(width) : undefined}
             horizontal 
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 20, gap: 14 }}
+            contentContainerStyle={{ paddingHorizontal: wide ? 0 : 20, gap: wide ? webLayout.gap : 14 }}
             decelerationRate={0.9}
             scrollEventThrottle={16}
             nestedScrollEnabled={true}
@@ -285,6 +301,7 @@ export default function ExploreScreen() {
                 key={hotel.id} 
                 hotel={hotel} 
                 index={index}
+                {...(wide ? { compact: true, cardWidth: webLayout.cardWidth, cardHeight: webLayout.cardWidth } : {})}
                 onPress={() => router.navigate(`/listingDetails/${hotel.id}`)}
               />
             )))}
@@ -292,15 +309,18 @@ export default function ExploreScreen() {
         </View>
 
         {/* Popular Stays Section */}
-        <View style={styles.popularSection}>
-          <Text style={styles.sectionTitle}>Popular Stays</Text>
+        <View style={[styles.popularSection, wide && { paddingHorizontal: 0, paddingTop: 42 }]}>
+          <Text style={[styles.sectionTitle, wide && styles.desktopSectionTitle]}>Popular Stays</Text>
 
-          <View style={styles.popularGrid}>
+          <View style={[styles.popularGrid, wide && { gap: webLayout.gap, rowGap: 32, justifyContent: 'flex-start', marginTop: 20 }]}>
             {loading ? (
               <ActivityIndicator size="large" color="#489CFC" />
             ) : (
               hotels.map((hotel, index) => (
-              <PopularStayCard 
+              wide ? <HotelCard
+                key={hotel.id} hotel={hotel} index={index} compact cardWidth={webLayout.cardWidth} cardHeight={webLayout.cardWidth}
+                onPress={() => router.navigate(`/listingDetails/${hotel.id}`)}
+              /> : <PopularStayCard
                 key={hotel.id} 
                 hotel={hotel} 
                 index={index}
@@ -501,4 +521,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     rowGap: 16,
   },
+  desktopSectionTitle: { fontSize: 22, lineHeight: 28, fontFamily: 'Inter_700Bold' },
+  rowArrow: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F0F1F2', alignItems: 'center', justifyContent: 'center' },
 });
