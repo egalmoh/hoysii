@@ -29,6 +29,7 @@
     },
     "web": {
       "output": "single",
+      "themeColor": "#FAFAFA",
       "favicon": "./assets/Images/favicon.png"
     },
     "plugins": [
