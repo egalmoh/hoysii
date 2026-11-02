@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "check": "node --check src/index.js && node --check src/auth.js && node --check src/db.js && node --check src/availability.js && node --check src/booking-service.js && node --check src/operations.js && node --check src/payments.js && node --check src/product-features.js",
+    "check": "node --check src/index.js && node --check src/auth.js && node --check src/db.js && node --check src/availability.js && node --check src/booking-service.js && node --check src/operations.js && node --check src/testing.js && node --check src/payments.js && node --check src/product-features.js",
     "test": "node --test test/*.test.js"
   },
   "dependencies": {

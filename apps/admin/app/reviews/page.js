@@ -48,7 +48,7 @@ export default function Reviews() {
             {r.hotel_name} · {r.rating}/5
           </strong>
           <p>
-            {r.reference} · {r.hidden ? "Hidden" : "Published"}
+            {r.is_test ? "Stakeholder test · never public · " : ""}{r.reference} · {r.hidden ? "Hidden" : "Published"}
           </p>
           <p className="whitespace-pre-wrap break-words">{r.comment}</p>
           {r.moderation_note && <p>Moderation: {r.moderation_note}</p>}

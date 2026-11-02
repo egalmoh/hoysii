@@ -21,6 +21,7 @@
     { "binding": "HOTEL_MEDIA", "bucket_name": "hoysii-hotel-media" }
   ],
   "vars": {
+    "STAKEHOLDER_TESTING": "true",
     "BETTER_AUTH_URL": "https://api.hoysii.com",
     "ADMIN_PANEL_URL": "https://admin.hoysii.com",
     "PARTNER_PANEL_URL": "https://partners.hoysii.com",

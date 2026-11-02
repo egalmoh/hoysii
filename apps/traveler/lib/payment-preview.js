@@ -1,5 +1,4 @@
-// One transient screen preview, not a booking store. Never persisted or sent to the API.
-let currentPreview = null;
+// Mock bookings are device-local test records. Never send them to booking/payment APIs.
 
 // Web checkout is a mock until gateways are connected. Native release builds stay real.
 export function isPaymentPreviewEnabled(development, platform) {
@@ -16,17 +15,20 @@ export function createPaymentPreview({ userId, hotel, room, quote, adults, child
     throw new Error('Choose a room and valid dates before previewing confirmation.');
   }
   const key = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  currentPreview = {
+  return {
     id: `preview-${key}`,
-    reference: `PREVIEW-${key.toUpperCase()}`,
+    reference: `MOCK-${key.toUpperCase()}`,
+    created_at: new Date().toISOString(),
     user_id: userId,
     is_payment_preview: true,
-    booking_status: 'preview',
+    booking_status: 'mock',
     payment_status: 'not_charged',
     check_in_date: quote.check_in_date,
     check_out_date: quote.check_out_date,
     adults, children, guests: adults + children,
     total_price: quote.total_price,
+    nightly_rate: quote.nightly_rate,
+    service_fee: quote.service_fee,
     policy: { ...quote.policy },
     hotels: {
       id: hotel.id, name: hotel.name, city: hotel.city || hotel.location,
@@ -35,14 +37,42 @@ export function createPaymentPreview({ userId, hotel, room, quote, adults, child
     },
     rooms: { id: room.id, name: room.name, images: [...(room.images || [])] },
   };
-  return currentPreview;
 }
 
-export function getPaymentPreview(id, userId, enabled) {
-  return enabled === true && userId && currentPreview?.id === id && currentPreview.user_id === userId
-    ? currentPreview : null;
-}
+export function createMockBookingStore(storage) {
+  let writes = Promise.resolve();
+  const keyFor = (userId) => `@hoysii/mock-bookings/v1/${encodeURIComponent(userId)}`;
+  const isOwnedMock = (booking, userId) => booking?.user_id === userId
+    && booking.is_payment_preview === true && isPaymentPreviewId(booking.id)
+    && booking.booking_status === 'mock' && booking.payment_status === 'not_charged';
 
-export function clearPaymentPreview(id) {
-  if (currentPreview?.id === id) currentPreview = null;
+  const list = async (userId, enabled) => {
+    if (enabled !== true || !userId) return [];
+    const raw = await storage.getItem(keyFor(userId));
+    if (!raw) return [];
+    let rows;
+    try { rows = JSON.parse(raw); } catch { throw new Error('Could not read mock bookings saved on this device.'); }
+    if (!Array.isArray(rows)) throw new Error('Could not read mock bookings saved on this device.');
+    return rows.filter((booking) => isOwnedMock(booking, userId));
+  };
+
+  return {
+    list,
+    async get(id, userId, enabled) {
+      return (await list(userId, enabled)).find((booking) => booking.id === id) || null;
+    },
+    save(booking, enabled) {
+      if (enabled !== true || !booking?.user_id || !isOwnedMock(booking, booking.user_id)) {
+        return Promise.reject(new Error('Only mock bookings can be saved on this device.'));
+      }
+      // Serialize read/modify/write so two completed previews cannot erase each other.
+      const write = writes.catch(() => {}).then(async () => {
+        const rows = await list(booking.user_id, enabled);
+        await storage.setItem(keyFor(booking.user_id), JSON.stringify([booking, ...rows.filter((row) => row.id !== booking.id)]));
+        return booking;
+      });
+      writes = write;
+      return write;
+    },
+  };
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Pressable, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Pressable, Platform, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -20,10 +20,9 @@ import WhatsAppModal from '../../components/WhatsAppModal';
 import { api, apiFetch, checkRoomAvailability, getUnavailableDates } from '../../lib/api';
 import { StatusBar } from 'expo-status-bar';
 import { isHotelVerified } from '../../lib/hotel-display';
-import { createPaymentPreview, isPaymentPreviewEnabled } from '../../lib/payment-preview';
+import { useStakeholderTesting } from '../../lib/stakeholder-testing';
 import { cancellationCutoff, formatCancellationDate } from '../../lib/cancellation-policy';
 
-const paymentPreviewEnabled = isPaymentPreviewEnabled(__DEV__, Platform.OS);
 
 const WHATSAPP_STORAGE_KEY = '@user_whatsapp_number';
 
@@ -194,7 +193,11 @@ function formatCancellationDeadline(checkIn) {
 // - Review of hotel details
 // ----------------------------------------------------------------------
 export default function BookingReview() {
+  const stakeholderTesting = useStakeholderTesting();
   const bookingKey = useRef(`booking-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const reviewRef = useRef(null);
+  const priceRef = useRef(null);
+  const { width: windowWidth, height: windowHeight, fontScale } = useWindowDimensions();
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
@@ -283,7 +286,28 @@ export default function BookingReview() {
     });
     return () => { active = false; };
   }, [datesModalVisible, availabilityKey, roomId]);
-  const [priceTooltipVisible, setPriceTooltipVisible] = useState(false);
+  const [priceTooltipAnchor, setPriceTooltipAnchor] = useState(null);
+  useEffect(() => {
+    setPriceTooltipAnchor(null);
+  }, [windowWidth, windowHeight, fontScale]);
+
+  const togglePriceTooltip = () => {
+    if (priceTooltipAnchor) {
+      setPriceTooltipAnchor(null);
+      return;
+    }
+    // Both measurements share window coordinates, including the web app's margins.
+    reviewRef.current?.measureInWindow((reviewX, reviewY, reviewWidth) => {
+      priceRef.current?.measureInWindow((priceX, priceY, _width, priceHeight) => {
+        const left = priceX - reviewX;
+        setPriceTooltipAnchor({
+          right: reviewWidth - left + 16,
+          centerY: priceY - reviewY + priceHeight / 2,
+          width: Math.min(156 * fontScale, left - 28),
+        });
+      });
+    });
+  };
   const [whatsappModalVisible, setWhatsappModalVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState(null);
@@ -524,7 +548,9 @@ export default function BookingReview() {
   const dateRange = formatDateRange(checkIn, checkOut) || 'Select dates';
   const guestsText = formatGuests(String(adults), String(children));
   const totalPrice = quoteMatches ? quote.total_price : calculateTotalPrice(roomPrice, checkIn, checkOut);
-  const priceBreakdown = calculatePriceBreakdown(roomPrice, checkIn, checkOut);
+  const priceBreakdown = quoteMatches
+    ? { nightlyRate: quote.nightly_rate, serviceFee: quote.service_fee }
+    : calculatePriceBreakdown(roomPrice, checkIn, checkOut);
 
 
   // ----------------------------------------------------------------------
@@ -532,7 +558,12 @@ export default function BookingReview() {
   // ----------------------------------------------------------------------
   
   return (
-    <View style={styles.container}>
+    <View
+      ref={reviewRef}
+      collapsable={false}
+      style={styles.container}
+      onLayout={() => setPriceTooltipAnchor(null)}
+    >
             <StatusBar style="dark" />
       
       {/* Header */}
@@ -616,6 +647,8 @@ export default function BookingReview() {
         contentContainerStyle={styles.bookingDetailsContainer}
         contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}
+        onScroll={() => setPriceTooltipAnchor(null)}
+        scrollEventThrottle={16}
       >
         <View style={styles.bookingDetailsSection}>
           {/* Dates Row */}
@@ -652,15 +685,15 @@ export default function BookingReview() {
           <View style={styles.totalPriceRow}>
             <Text style={styles.detailLabel}>Total Price</Text>
             <TouchableOpacity
-                onPress={() => {
-                  setPriceTooltipVisible(!priceTooltipVisible);
-                }}
-                activeOpacity={0.7}
-                style={styles.totalPriceTouchable}
-              >
-            <View style={styles.totalPriceValueContainer}>
+              onPress={togglePriceTooltip}
+              accessibilityRole="button"
+              accessibilityLabel={`Total price $${totalPrice}. Show price breakdown`}
+              accessibilityState={{ expanded: Boolean(priceTooltipAnchor) }}
+              activeOpacity={0.7}
+            >
+              <View ref={priceRef} collapsable={false} style={styles.totalPriceValueContainer}>
                 <Text style={styles.totalPriceValue}>${totalPrice}</Text>
-            </View>
+              </View>
             </TouchableOpacity>
           </View>
           <View style={styles.dividerLast} />
@@ -719,10 +752,11 @@ export default function BookingReview() {
       </ScrollView>
       
       {/* Price Tooltip */}
-      {priceTooltipVisible && (
+      {priceTooltipAnchor && (
         <PriceBreakdownTooltip
           breakdown={priceBreakdown}
-          onClose={() => setPriceTooltipVisible(false)}
+          anchor={priceTooltipAnchor}
+          onClose={() => setPriceTooltipAnchor(null)}
         />
       )}
 
@@ -857,19 +891,6 @@ export default function BookingReview() {
                 return;
               }
 
-              // Preview this final screen in development and the current web checkout.
-              // Branch before creating a hold, initiating payment or writing a booking.
-              if (paymentPreviewEnabled) {
-                const preview = createPaymentPreview({
-                  userId,
-                  hotel: property || { id: hotelId, name: hotelName, city: params.hotelLocation, address: hotelAddress, images: hotelImageUri ? [hotelImageUri] : [] },
-                  room: { id: roomId, name: roomType, images: roomImageUri ? [roomImageUri] : [] },
-                  quote, adults, children,
-                }, paymentPreviewEnabled);
-                router.replace({ pathname: '/(modals)/confirmation', params: { bookingId: preview.id } });
-                return;
-              }
-
               const authenticatedApi = api;
 
               const { data: userData, error: userError } = await authenticatedApi
@@ -884,6 +905,8 @@ export default function BookingReview() {
                 return;
               }
 
+              // Require the matching API release and bind this attempt to its server-selected mode.
+              const checkoutConfig = await apiFetch('/v1/config');
               const accountUserId = userData.id;
 
               const { data, error } = await authenticatedApi
@@ -891,6 +914,7 @@ export default function BookingReview() {
                 .insert([
                   {
                     user_id: accountUserId,
+                    is_test: checkoutConfig.stakeholder_testing === true,
                     hotel_id: hotelId,
                     room_id: roomId,
                     check_in_date: checkIn,
@@ -923,7 +947,7 @@ export default function BookingReview() {
 
             } catch (error) {
               console.error('Error creating booking:', error);
-              if (error.message?.includes('hold expired')) bookingKey.current = `booking-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+              if (error.message?.includes('hold expired') || /mode.*changed|mode is controlled/i.test(error.message || '')) bookingKey.current = `booking-${Date.now()}-${Math.random().toString(36).slice(2)}`;
               alert(error.message || 'Failed to book. Please try again.');
             } finally {
               setSubmitting(false);
@@ -940,7 +964,7 @@ export default function BookingReview() {
         {/* SSL Encrypted text */}
         {paymentMethod && (
           <View style={styles.sslTextContainer}>
-            {paymentPreviewEnabled && <Text style={[styles.sslText, { color: '#92400E', marginBottom: 6 }]}>Payment preview · No money will be charged</Text>}
+            {stakeholderTesting && <Text style={styles.sslText}>Stakeholder testing · No money is charged</Text>}
             <Text style={styles.sslText}>
               By clicking the button, you agree to our{' '}
               <Text 
@@ -1506,7 +1530,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   sslTextContainer: {
-    flexDirection: 'row',
+    width: '100%',
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
@@ -1515,29 +1540,40 @@ const styles = StyleSheet.create({
   sslText: {
     fontSize: 12,
     color: '#6B728095',
+    textAlign: 'center',
     fontFamily: 'Inter_400Regular',
   },
 });
 
-// Price Breakdown Tooltip Component: Shows detailed price calculation (taxes, fees)
-function PriceBreakdownTooltip({ breakdown, onClose }) {
+// Anchor the service fee and nightly rate beside the total price.
+function PriceBreakdownTooltip({ breakdown, anchor, onClose }) {
+  const [height, setHeight] = useState(0);
   return (
-    <View style={tooltipStyles.wrapper}>
+    <View style={tooltipStyles.wrapper} onAccessibilityEscape={onClose}>
       {/* Backdrop to close on outside click */}
       <Pressable 
         style={tooltipStyles.backdrop} 
         onPress={onClose}
+        accessibilityRole="button"
+        accessibilityLabel="Close price breakdown"
       />
-      <View style={tooltipStyles.container}>
-        <View style={tooltipStyles.tooltip}>
-          <View style={tooltipStyles.content}>
-            <View style={tooltipStyles.textContainer}>
-              <Text style={tooltipStyles.text}>Service fee: 10%</Text>
-              <Text style={tooltipStyles.text}>Nightly rate: ${breakdown.nightlyRate}</Text>
-            </View>
+      <View
+        onLayout={(event) => setHeight(event.nativeEvent.layout.height)}
+        style={[tooltipStyles.container, {
+          right: anchor.right,
+          top: anchor.centerY,
+          width: anchor.width,
+          opacity: height ? 1 : 0,
+          transform: [{ translateY: -height / 2 }],
+        }]}
+      >
+        <View style={tooltipStyles.content}>
+          <View style={tooltipStyles.textContainer}>
+            <Text style={tooltipStyles.text}>Service fee: ${breakdown.serviceFee}</Text>
+            <Text style={tooltipStyles.text}>Nightly rate: ${breakdown.nightlyRate}</Text>
           </View>
-          {/* Arrow pointing left */}
         </View>
+        <View pointerEvents="none" style={tooltipStyles.pointer} />
       </View>
     </View>
   );
@@ -1563,30 +1599,38 @@ const tooltipStyles = StyleSheet.create({
   },
   container: {
     position: 'absolute',
-    right: 65,
-    top: 380,
     zIndex: 1000,
     elevation: 10,
-    pointerEvents: 'box-none',
-  },
-  tooltip: {
-    position: 'relative',
   },
   content: {
-    width: 140,
-    height: 60,
+    minHeight: 66,
     backgroundColor: '#FFFFFF',
     borderWidth: 0.5,
-    borderColor: '#6B7280',
-    borderRadius: 15,
-    paddingVertical: 14,
-    paddingHorizontal: 19,
+    borderColor: '#9CA3AF',
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 18,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 15.6,
     elevation: 5,
     justifyContent: 'center',
+  },
+  pointer: {
+    position: 'absolute',
+    right: -8,
+    top: '50%',
+    width: 20,
+    height: 20,
+    marginTop: -10,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 0.5,
+    borderRightWidth: 0.5,
+    borderColor: '#9CA3AF',
+    borderTopRightRadius: 5,
+    transform: [{ rotate: '45deg' }],
+    elevation: 5,
   },
   textContainer: {
     flexDirection: 'column',
@@ -1595,7 +1639,7 @@ const tooltipStyles = StyleSheet.create({
   },
   text: {
     fontSize: 12,
-    lineHeight: 15,
+    lineHeight: 17,
     color: '#111827',
     fontFamily: 'Inter_400Regular',
     width: '100%',

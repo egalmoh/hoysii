@@ -9,7 +9,7 @@ export default function BookingsPage() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const [filters, setFilters] = useState({ search: '', date: '', payment: '', acknowledgement: '' });
+  const [filters, setFilters] = useState({ search: '', date: '', payment: '', acknowledgement: '', mode: '' });
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -34,6 +34,7 @@ export default function BookingsPage() {
     return search.includes(filters.search.toLowerCase())
       && (!filters.date || (booking.check_in_date <= filters.date && booking.check_out_date >= filters.date))
       && (!filters.payment || booking.payment_status === filters.payment)
+      && (!filters.mode || Boolean(booking.is_test) === (filters.mode === 'test'))
       && (!filters.acknowledgement || booking.hotel_ack_status === filters.acknowledgement);
   });
 
@@ -55,6 +56,7 @@ export default function BookingsPage() {
           <select aria-label="Payment status" value={filters.payment} onChange={(event) => setFilters({ ...filters, payment: event.target.value })} className="rounded-lg border p-2.5 dark:bg-gray-900"><option value="">All payments</option>{['pending','paid','partially_refunded','refunded'].map((status) => <option key={status} value={status}>{status}</option>)}</select>
           <select aria-label="Hotel acknowledgement" value={filters.acknowledgement} onChange={(event) => setFilters({ ...filters, acknowledgement: event.target.value })} className="rounded-lg border p-2.5 dark:bg-gray-900"><option value="">All hotel responses</option>{['not_sent','pending','acknowledged','declined'].map((status) => <option key={status} value={status}>{status}</option>)}</select>
         </div>
+        <select aria-label="Booking type" value={filters.mode} onChange={(event) => setFilters({ ...filters, mode: event.target.value })} className="rounded-lg border p-2.5 dark:bg-gray-900"><option value="">Real and test bookings</option><option value="test">Stakeholder tests</option><option value="real">Real bookings</option></select>
         {error && <p role="alert" className="text-red-600">{error}</p>}
         {loading ? (
           <div className="bg-white dark:bg-gray-800 rounded-xl p-12 flex justify-center border border-slate-200 dark:border-gray-700">
@@ -83,7 +85,7 @@ export default function BookingsPage() {
                   {filteredBookings.map((booking) => (
                     <tr key={booking.id} className="hover:bg-slate-50 dark:hover:bg-gray-700/30 transition-colors">
                       <td className="px-6 py-4 text-slate-600 dark:text-slate-300">
-                         <div className="font-medium text-slate-900 dark:text-white">{getGuestName(booking)}</div><div className="text-xs text-brand-600 break-all">{booking.reference || booking.id}</div>
+                         <div className="font-medium text-slate-900 dark:text-white">{getGuestName(booking)}</div>{booking.is_test && <span className="text-xs font-semibold text-amber-700">Stakeholder test · no funds moved</span>}<div className="text-xs text-brand-600 break-all">{booking.reference || booking.id}</div>
                          <div className="text-xs text-slate-500">{getGuestPhone(booking)}</div>
                       </td>
                       <td className="px-6 py-4 text-slate-600 dark:text-slate-300">

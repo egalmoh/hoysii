@@ -9,7 +9,8 @@ import { useUser } from '../../lib/auth';
 import { apiFetch } from '../../lib/api';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAudioPlayer } from 'expo-audio';
-import { clearPaymentPreview, getPaymentPreview, isPaymentPreviewId, isPaymentPreviewEnabled } from '../../lib/payment-preview';
+import { isPaymentPreviewId, isPaymentPreviewEnabled } from '../../lib/payment-preview';
+import { mockBookings } from '../../lib/mock-bookings';
 
 const paymentPreviewEnabled = isPaymentPreviewEnabled(__DEV__, Platform.OS);
 
@@ -29,10 +30,12 @@ export default function BookingConfirmationScreen() {
     setBooking(null);
     setError('');
     if (isPaymentPreviewId(params.bookingId)) {
-      const preview = getPaymentPreview(params.bookingId, user?.id, paymentPreviewEnabled);
-      if (preview) setBooking(preview);
-      else setError('This payment preview has expired. Choose a room to try again.');
-      return;
+      mockBookings.get(params.bookingId, user?.id, paymentPreviewEnabled).then((preview) => {
+        if (!active) return;
+        if (preview) setBooking(preview);
+        else setError('This mock booking is not saved for your account on this device.');
+      }).catch((error) => { if (active) setError(error.message); });
+      return () => { active = false; };
     }
     apiFetch(`/v1/bookings/${encodeURIComponent(params.bookingId || '')}`).then((data) => {
       if (data.payment_status !== 'paid' || data.booking_status !== 'confirmed') throw new Error('This booking does not have a confirmed payment yet. Check Trips or contact Hoysii support.');
@@ -41,7 +44,6 @@ export default function BookingConfirmationScreen() {
     return () => { active = false; };
   }, [params.bookingId, user?.id, isLoaded]);
   const goToTrips = () => {
-    clearPaymentPreview(params.bookingId);
     router.dismissTo('/(tabs)/trips');
   };
   
@@ -94,7 +96,7 @@ export default function BookingConfirmationScreen() {
           {/* Top Row: Title */}
           <View style={styles.topRow}>
             <View style={{ width: 38 }} />
-            <Text style={styles.headerTitle}>Confirmed</Text>
+            <Text style={styles.headerTitle}>{booking.is_payment_preview ? 'Mock confirmation' : 'Confirmed'}</Text>
             <View style={{ width: 38 }} />
           </View>
           
@@ -122,16 +124,18 @@ export default function BookingConfirmationScreen() {
         {/* Confirmation Text */}
         <View style={styles.textContainer}>
           <Text style={styles.mainText}>
-            Pack your bags, {firstName.charAt(0).toUpperCase() + firstName.slice(1)}! You're going to {hotelLocation}.
+            {booking.is_payment_preview ? 'Your mock booking is saved.' : `Pack your bags, ${firstName.charAt(0).toUpperCase() + firstName.slice(1)}! You're going to ${hotelLocation}.`}
           </Text>
           <Text style={styles.subText}>
-            {booking.is_payment_preview ? <>Payment confirmation preview for <Text style={styles.boldText}>{hotelName}</Text>. No money was charged, no reservation was created, and no email was sent.</> : <>Your booking at <Text style={styles.boldText}>{hotelName}</Text> is confirmed. {booking.receipt_email_status === 'sent' ? 'We have sent your receipt to ' : 'Your receipt is available in Trips. We will also email it to '}<Text style={styles.boldText}>{userEmail}</Text>.</>}
+            {booking.is_test ? <>Your booking at <Text style={styles.boldText}>{hotelName}</Text> is confirmed. Your receipt is available in Trips.</> : booking.is_payment_preview ? <>Payment confirmation preview for <Text style={styles.boldText}>{hotelName}</Text>. No money was charged, no reservation was created, and no email was sent.</> : <>Your booking at <Text style={styles.boldText}>{hotelName}</Text> is confirmed. {booking.receipt_email_status === 'sent' ? 'We have sent your receipt to ' : 'Your receipt is available in Trips. We will also email it to '}<Text style={styles.boldText}>{userEmail}</Text>.</>}
           </Text>
         </View>
 
+        {booking.is_test && <Text style={styles.subText}>Stakeholder test · Payment simulated. No money was charged or hotel email sent.</Text>}
+
         {/* Receipt Section */}
         <View style={styles.receiptSection}>
-          <Text style={styles.receiptTitle}>Receipt</Text>
+          <Text style={styles.receiptTitle}>{booking.is_payment_preview ? 'Mock receipt' : 'Receipt'}</Text>
           
           <View style={styles.receiptCard}>
             {/* Booking Id Row */}
@@ -166,7 +170,7 @@ export default function BookingConfirmationScreen() {
               <MaterialCommunityIcons name="shield-lock" size={28} color="#111827" />
             </View>
             <Text style={styles.trustText}>
-              {booking.is_payment_preview ? 'Payment preview only. This stay is not booked and will not appear in Trips.' : <>Your funds are held securely by Hoysii. {'\n'}The host is not paid until 24 hours after you successfully check in.</>}
+              {booking.is_test ? 'Stakeholder test booking. Hotel acknowledgement, check-in and completion are managed in the hotel portal. No money moves during this test.' : booking.is_payment_preview ? 'Saved in Trips as a mock booking on this device. No room is reserved and no money was charged.' : <>Your funds are held securely by Hoysii. {'\n'}The host is not paid until 24 hours after you successfully check in.</>}
             </Text>
           </View>
         </View>
@@ -283,9 +287,11 @@ const styles = StyleSheet.create({
   receiptRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    gap: 16,
   },
   receiptLabel: {
+    flexShrink: 0,
     fontSize: 14,
     lineHeight: 17,
     fontWeight: '600',
@@ -293,6 +299,9 @@ const styles = StyleSheet.create({
     color: '#6B7280',
   },
   receiptValue: {
+    flex: 1,
+    minWidth: 0,
+    textAlign: 'right',
     fontSize: 14,
     lineHeight: 17,
     fontWeight: '400',

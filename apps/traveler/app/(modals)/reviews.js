@@ -99,6 +99,7 @@ function ReviewForm({ row }) {
   return (
     <View style={styles.card}>
       <Text style={styles.heading}>{row.hotel_name}</Text>
+      {Boolean(row.is_test) && <Text style={styles.hint}>Stakeholder test review · excluded from public ratings</Text>}
       <Text style={styles.hint}>
         {row.check_in_date} – {row.check_out_date} · {row.reference}
       </Text>

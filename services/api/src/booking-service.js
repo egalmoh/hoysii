@@ -1,5 +1,6 @@
+import { stakeholderTesting } from './testing.js';
 import { all, db, first } from './db.js';
-import { INSERT_BOOKING_SQL, PAYMENT_HOLD_MINUTES } from './availability.js';
+import { insertBookingSql, PAYMENT_HOLD_MINUTES } from './availability.js';
 
 export function reject(message, status = 400) { throw Object.assign(new Error(message), { status }); }
 export function parse(value, fallback = null) { try { return typeof value === 'string' ? JSON.parse(value) : value ?? fallback; } catch { return fallback; } }
@@ -25,7 +26,7 @@ export function exception(database, bookingId, kind, note) {
   return statement(database, 'INSERT OR IGNORE INTO booking_exceptions (id, booking_id, kind, note) VALUES (?, ?, ?, ?)', crypto.randomUUID(), bookingId, kind, note);
 }
 export function notification(database, bookingId, kind, recipient, subject, body) {
-  return statement(database, 'INSERT OR IGNORE INTO notifications (id, booking_id, kind, recipient, subject, body) VALUES (?, ?, ?, ?, ?, ?)', crypto.randomUUID(), bookingId, kind, recipient, subject, body);
+  return statement(database, 'INSERT OR IGNORE INTO notifications (id, booking_id, kind, recipient, subject, body) SELECT ?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM bookings WHERE id=? AND is_test=0)', crypto.randomUUID(), bookingId, kind, recipient, subject, body, bookingId);
 }
 
 const ORIGINAL_CANCELLATION_POLICY = 'Free cancellation until 24 hours before check-in. After that: refund minus the first night.';
@@ -66,7 +67,7 @@ export function travelerBooking(row) {
   const policy = parse(row.policy_snapshot);
   const confirmed = ['paid', 'partially_refunded'].includes(row.payment_status) && !['cancelled', 'refunded'].includes(row.booking_status);
   return {
-    id: row.id, reference: row.reference || `HYS-${row.id.replaceAll('-', '').toUpperCase()}`,
+    is_test: Boolean(row.is_test), stay_status: ['checked_in', 'completed'].includes(row.booking_status) ? row.booking_status : null, id: row.id, reference: row.reference || `HYS-${row.id.replaceAll('-', '').toUpperCase()}`,
     hotel_id: row.hotel_id, room_id: row.room_id,
     check_in_date: row.check_in_date, check_out_date: row.check_out_date,
     adults: row.adults, children: row.children, guests: row.guests,
@@ -83,6 +84,8 @@ export function travelerBooking(row) {
 
 export async function createBooking(env, user, body, key) {
   const database = db(env);
+  const test = stakeholderTesting(env);
+  if (body.is_test != null && Boolean(body.is_test) !== test) reject('Booking mode is controlled by the server.');
   if (!body.room_id || !validRange(body.check_in_date, body.check_out_date)) reject('Choose valid stay dates within the next year (maximum 365 nights).');
   const adults = Number(body.adults ?? body.guests ?? 1);
   const children = Number(body.children ?? 0);
@@ -90,6 +93,7 @@ export async function createBooking(env, user, body, key) {
   if (!key || typeof key !== 'string' || key.length > 100) reject('An idempotency key is required.');
   const previous = await first(database, 'SELECT * FROM bookings WHERE idempotency_key=? AND user_id=?', key, user.id);
   if (previous) {
+    if (Boolean(previous.is_test) !== test) reject('Testing mode has changed. Start a new booking.', 409);
     if (previous.room_id !== body.room_id || previous.check_in_date !== body.check_in_date || previous.check_out_date !== body.check_out_date || previous.adults !== adults || previous.children !== children) reject('This booking request was already used for a different stay.', 409);
     if (['cancelled', 'expired'].includes(previous.booking_status) || (previous.payment_status === 'pending' && holdExpired(previous))) reject('This unpaid room hold expired. Please try booking again.', 409);
     return travelerBooking(previous);
@@ -111,7 +115,7 @@ export async function createBooking(env, user, body, key) {
   if (body.expected_policy && Object.entries(policy).some(([key, value]) => body.expected_policy[key] !== value)) reject('The hotel terms have changed. Review the latest terms before booking.', 409);
   try {
     const result = await database.batch([
-      statement(database, INSERT_BOOKING_SQL, body.check_in_date, body.check_out_date, id, user.id, body.check_in_date, body.check_out_date, adults + children, total, text(body.payment_provider, 50) || null, key, room.id),
+      statement(database, insertBookingSql(test), body.check_in_date, body.check_out_date, id, user.id, body.check_in_date, body.check_out_date, adults + children, total, text(body.payment_provider, 50) || null, key, room.id),
       statement(database, `UPDATE bookings SET reference=?, nightly_cents=?, service_fee_cents=?, adults=?, children=?, hotel_snapshot=?, room_snapshot=?, policy_snapshot=?, hold_expires_at=datetime('now', '+${PAYMENT_HOLD_MINUTES} minutes') WHERE id=?`, `HYS-${id.replaceAll('-', '').slice(0,12).toUpperCase()}`, room.price_cents, serviceFee, adults, children, JSON.stringify(hotelSnapshot), JSON.stringify(roomSnapshot), JSON.stringify(policy), id),
       statement(database, "INSERT INTO booking_activity (id,booking_id,actor,action,note) SELECT ?,id,?,'created','Temporary room hold created' FROM bookings WHERE id=?", crypto.randomUUID(), user.id, id),
     ]);

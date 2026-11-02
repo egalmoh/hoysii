@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useAuth } from '../../lib/auth';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import { api, apiFetch } from '../../lib/api';
+import { apiFetch } from '../../lib/api';
+import { mockBookings } from '../../lib/mock-bookings';
+import { isPaymentPreviewEnabled } from '../../lib/payment-preview';
+import { groupTrips } from '../../lib/trips';
+
+const paymentPreviewEnabled = isPaymentPreviewEnabled(__DEV__, Platform.OS);
 
 const SUPPORT_WHATSAPP_NUMBER = '+252907275534';
 
@@ -71,9 +76,9 @@ function BookingReferenceModal({ booking, visible, onClose }) {
         <Pressable style={styles.referenceModal} onPress={(event) => event.stopPropagation()}>
           <View style={styles.modalHandle} />
           <View style={styles.modalIcon}><Feather name="hash" size={22} color="#489CFC" /></View>
-          <Text style={styles.modalTitle}>Booking reference</Text>
+          <Text style={styles.modalTitle}>{booking.is_payment_preview ? 'Mock booking reference' : 'Booking reference'}</Text>
           <Text style={styles.referenceCode}>{referenceFor(booking)}</Text>
-          <Text style={styles.modalDescription}>Share this reference whenever you contact Hoysii about this stay.</Text>
+          <Text style={styles.modalDescription}>{booking.is_payment_preview ? 'This is a test reference. It is not a hotel reservation.' : 'Share this reference whenever you contact Hoysii about this stay.'}</Text>
           <TouchableOpacity style={styles.modalButton} onPress={onClose} activeOpacity={0.8}><Text style={styles.modalButtonText}>Done</Text></TouchableOpacity>
         </Pressable>
       </Pressable>
@@ -86,23 +91,28 @@ function ReceiptModal({ booking, visible, onClose }) {
   const [error, setError] = useState('');
   useEffect(() => {
     let active = true;
+    if (booking.is_payment_preview) {
+      setReceipt({ amount_cents: Math.round(booking.total_price * 100), transaction_reference: 'No transaction — mock booking' });
+      return;
+    }
     apiFetch(`/v1/bookings/${encodeURIComponent(booking.id)}/receipt`).then((data) => { if (active) setReceipt(data); }).catch((error) => { if (active) setError(error.message); });
     return () => { active = false; };
-  }, [booking.id]);
+  }, [booking.id, booking.is_payment_preview]);
   return (
     <Modal transparent visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.modalBackdrop}>
         <View style={styles.receiptModal}>
           <View style={styles.modalHandle} />
           <View style={styles.receiptTopRow}>
-            <View><Text style={styles.modalTitle}>Payment receipt</Text><Text style={styles.receiptReference}>{referenceFor(booking)}</Text></View>
+            <View style={{ flex: 1 }}><Text style={styles.modalTitle}>{booking.is_payment_preview ? 'Mock receipt' : 'Payment receipt'}</Text><Text style={styles.receiptReference}>{referenceFor(booking)}</Text></View>
             <TouchableOpacity style={styles.closeButton} onPress={onClose} accessibilityLabel="Close receipt"><Feather name="x" size={20} color="#111827" /></TouchableOpacity>
           </View>
+          {booking.is_test && <Text style={styles.modalDescription}>Test receipt · Payment simulated. No funds moved.</Text>}
           <View style={styles.receiptDivider} />
           <View style={styles.receiptRow}><Text style={styles.receiptLabel}>Stay</Text><Text style={styles.receiptValue}>{booking.hotels?.name || 'Hotel'}</Text></View>
           <View style={styles.receiptRow}><Text style={styles.receiptLabel}>Dates</Text><Text style={styles.receiptValue}>{displayDate(booking.check_in_date)} – {displayDate(booking.check_out_date)}</Text></View>
           {error ? <Text style={styles.modalDescription}>{error}</Text> : !receipt ? <ActivityIndicator color="#489CFC" /> : <>
-          <View style={styles.receiptRow}><Text style={styles.receiptLabel}>Total paid</Text><Text style={styles.receiptTotal}>{displayPrice(receipt.amount_cents / 100)}</Text></View>
+          <View style={styles.receiptRow}><Text style={styles.receiptLabel}>{booking.is_payment_preview ? 'Test total (not charged)' : 'Total paid'}</Text><Text style={styles.receiptTotal}>{displayPrice(receipt.amount_cents / 100)}</Text></View>
           <View style={styles.receiptRow}><Text style={styles.receiptLabel}>Transaction</Text><Text style={styles.receiptValue}>{receipt.transaction_reference}</Text></View>
           </>}
           <TouchableOpacity style={styles.modalButton} onPress={onClose} activeOpacity={0.8}><Text style={styles.modalButtonText}>Close receipt</Text></TouchableOpacity>
@@ -113,8 +123,10 @@ function ReceiptModal({ booking, visible, onClose }) {
 }
 
 function UpcomingStay({ booking, onReferencePress, onReceiptPress, onPolicyPress }) {
+  const mock = booking.is_payment_preview === true;
+  const test = Boolean(booking.is_test);
   const paid = ['paid', 'partially_refunded'].includes(booking.payment_status);
-  const status = ['cancelled', 'refunded', 'expired'].includes(booking.booking_status) ? booking.booking_status : paid ? 'Booking confirmed' : 'Payment pending';
+  const status = mock ? 'Mock booking · Not reserved' : ['cancelled', 'refunded', 'expired'].includes(booking.booking_status) ? booking.booking_status : paid && booking.stay_status === 'completed' ? 'Stay completed' : paid && booking.stay_status === 'checked_in' ? 'Checked in' : paid ? 'Booking confirmed' : 'Payment pending';
   const hotel = booking.hotels || {};
   const room = booking.rooms || {};
   const hotelImage = room.images?.[0] || hotel.images?.[0];
@@ -126,7 +138,9 @@ function UpcomingStay({ booking, onReferencePress, onReceiptPress, onPolicyPress
 
   return (
     <View style={styles.stayCard}>
-      <View style={styles.confirmedPill}><MaterialCommunityIcons name="check-circle" size={17} color="#15803D" /><Text style={styles.confirmedText}>{status}</Text></View>
+      <View style={[styles.confirmedPill, mock && styles.mockPill]}><MaterialCommunityIcons name={mock ? 'flask-outline' : 'check-circle'} size={17} color={mock ? '#92400E' : '#15803D'} /><Text style={[styles.confirmedText, mock && styles.mockText]}>{status}</Text></View>
+      {test && <Text style={styles.mockNotice}>Stakeholder test · Payment simulated. No money was charged.</Text>}
+      {mock && <Text style={styles.mockNotice}>Saved on this device for testing. No money was charged and no hotel reservation was made.</Text>}
       <TouchableOpacity style={styles.referenceButton} onPress={onReferencePress} activeOpacity={0.75}><Text style={styles.referenceButtonText}>View booking reference</Text><Feather name="chevron-right" size={17} color="#489CFC" /></TouchableOpacity>
 
       <View style={styles.hotelOverview}>
@@ -153,9 +167,9 @@ function UpcomingStay({ booking, onReferencePress, onReceiptPress, onPolicyPress
       </View>
 
       <View style={styles.sectionDivider} />
-      <TouchableOpacity style={styles.paymentRow} onPress={onReceiptPress} disabled={!paid} activeOpacity={0.75}>
-        <View style={styles.paymentCopy}><Text style={styles.paymentLabel}>{paid ? 'Total paid' : booking.payment_status === 'refunded' ? 'Total refunded' : 'Total due'}</Text><Text style={styles.paymentValue}>{displayPrice(booking.payment_status === 'refunded' ? (booking.refund?.amount_cents ?? booking.total_price * 100) / 100 : booking.total_price)}</Text>{booking.refund && <Text style={styles.arrivalHint}>Refund {booking.refund.status}: {displayPrice(booking.refund.amount_cents / 100)}</Text>}</View>
-        <View style={styles.paymentAction}><Text style={styles.paymentActionText}>{paid ? 'View receipt' : booking.payment_status === 'refunded' ? 'Refund completed' : 'Payment pending'}</Text><Feather name="chevron-right" size={17} color="#489CFC" /></View>
+      <TouchableOpacity style={styles.paymentRow} onPress={onReceiptPress} disabled={!paid && !mock} activeOpacity={0.75}>
+        <View style={styles.paymentCopy}><Text style={styles.paymentLabel}>{mock ? 'Test total · Not charged' : paid ? 'Total paid' : booking.payment_status === 'refunded' ? 'Total refunded' : 'Total due'}</Text><Text style={styles.paymentValue}>{displayPrice(booking.payment_status === 'refunded' ? (booking.refund?.amount_cents ?? booking.total_price * 100) / 100 : booking.total_price)}</Text>{booking.refund && <Text style={styles.arrivalHint}>Refund {booking.refund.status}: {displayPrice(booking.refund.amount_cents / 100)}</Text>}</View>
+        <View style={styles.paymentAction}><Text style={styles.paymentActionText}>{mock ? 'Mock receipt' : paid ? 'View receipt' : booking.payment_status === 'refunded' ? 'Refund completed' : 'Payment pending'}</Text><Feather name="chevron-right" size={17} color="#489CFC" /></View>
       </TouchableOpacity>
 
       <View style={styles.sectionDivider} />
@@ -178,6 +192,7 @@ export default function TripsScreen() {
   const insets = useSafeAreaInsets();
   const { isSignedIn, userId } = useAuth();
   const [bookings, setBookings] = useState([]);
+  const [bookingsOwner, setBookingsOwner] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [referenceBooking, setReferenceBooking] = useState(null);
@@ -187,16 +202,25 @@ export default function TripsScreen() {
   useFocusEffect(useCallback(() => {
     let active = true;
     const fetchBookings = async () => {
-      if (!isSignedIn || !userId) { setLoading(false); return; }
+      if (!isSignedIn || !userId) { setBookings([]); setError(null); setLoading(false); return; }
       try {
         setLoading(true);
+        setReferenceBooking(null);
+        setReceiptBooking(null);
+        setPolicyBooking(null);
         setError(null);
-        const client = api;
-        const { data: userData, error: userError } = await client.from('users').select('id').eq('id', userId).maybeSingle();
-        if (userError || !userData) throw new Error('Could not find user');
-        const { data, error: bookingsError } = await client.from('bookings').select('*, hotels (*), rooms (*)').eq('user_id', userData.id).order('created_at', { ascending: false });
-        if (bookingsError) throw bookingsError;
-        if (active) setBookings(data || []);
+        const [real, mock] = await Promise.allSettled([
+          apiFetch('/v1/trips'),
+          mockBookings.list(userId, paymentPreviewEnabled),
+        ]);
+        if (active) {
+          setBookingsOwner(userId);
+          setBookings([...(real.status === 'fulfilled' ? real.value : []), ...(mock.status === 'fulfilled' ? mock.value : [])]);
+          const errors = [];
+          if (real.status === 'rejected') errors.push('We could not load your hotel reservations. Please try again.');
+          if (mock.status === 'rejected') errors.push('We could not load mock bookings saved on this device.');
+          setError(errors.join(' ') || null);
+        }
       } catch (fetchError) {
         console.error('Error fetching bookings:', fetchError);
         if (active) setError('We could not load your trips. Please try again.');
@@ -208,14 +232,8 @@ export default function TripsScreen() {
     return () => { active = false; };
   }, [isSignedIn, userId]));
 
-  const upcomingBookings = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return bookings.filter((booking) => {
-      const checkOut = localDate(booking.check_out_date);
-      return booking.booking_status !== 'expired' && (!checkOut || checkOut >= today);
-    });
-  }, [bookings]);
+  const groups = useMemo(() => groupTrips(bookingsOwner === userId ? bookings : []), [bookings, bookingsOwner, userId]);
+  const hasTrips = groups.upcoming.length + groups.past.length + groups.mock.length > 0;
 
   if (!isSignedIn) return <View style={[styles.container, { paddingTop: insets.top + 20 }]}><StatusBar style="dark" /><View style={styles.notSignedInContainer}><Feather name="calendar" size={48} color="#6B7280" /><Text style={styles.emptyTitle}>Your trips, in one place</Text><Text style={styles.emptySubtitle}>Sign in to see your stay, payment receipt, and hotel check-in details.</Text><TouchableOpacity style={styles.loginButton} activeOpacity={0.8} onPress={() => router.push('/(modals)/login')}><Text style={styles.loginButtonText}>Log in or sign up</Text></TouchableOpacity></View></View>;
 
@@ -225,16 +243,26 @@ export default function TripsScreen() {
       <ScrollView style={styles.scrollView} contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 112 }]} showsVerticalScrollIndicator={false}>
         <Text style={styles.headerTitle}>Trips</Text>
         {isSignedIn && <TouchableOpacity onPress={() => router.push('/(modals)/reviews')} style={{ paddingBottom: 20 }}><Text style={{ color: '#216FC4', fontFamily: 'Inter_500Medium', fontSize: 16 }}>Review your stays</Text></TouchableOpacity>}
-        {loading ? <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#489CFC" /></View> : error ? <View style={styles.emptyContainer}><Feather name="wifi-off" size={42} color="#9CA3AF" /><Text style={styles.emptyTitle}>Trips unavailable</Text><Text style={styles.emptySubtitle}>{error}</Text></View> : upcomingBookings.length === 0 ? <View style={styles.emptyContainer}><Feather name="calendar" size={48} color="#D1D5DB" /><Text style={styles.emptyTitle}>No upcoming stays</Text><Text style={styles.emptySubtitle}>Your confirmed stays will appear here.</Text><TouchableOpacity style={styles.exploreButton} activeOpacity={0.8} onPress={() => router.push('/(tabs)')}><Text style={styles.exploreButtonText}>Explore stays</Text></TouchableOpacity></View> : <View style={styles.staysList}><Text style={styles.upcomingTitle}>Upcoming stay</Text>{upcomingBookings.map((booking) => <UpcomingStay key={booking.id} booking={booking} onReferencePress={() => setReferenceBooking(booking)} onReceiptPress={() => setReceiptBooking(booking)} onPolicyPress={() => setPolicyBooking(booking)} />)}</View>}
+        {loading ? <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#489CFC" /></View> : <>
+          {error && <Text accessibilityRole="alert" style={styles.mockNotice}>{error}</Text>}
+          {!hasTrips && <View style={styles.emptyContainer}><Feather name="calendar" size={48} color="#D1D5DB" /><Text style={styles.emptyTitle}>{error ? 'Trips unavailable' : 'No stays yet'}</Text><Text style={styles.emptySubtitle}>Your saved bookings will appear here.</Text><TouchableOpacity style={styles.exploreButton} activeOpacity={0.8} onPress={() => router.push('/(tabs)')}><Text style={styles.exploreButtonText}>Explore stays</Text></TouchableOpacity></View>}
+          {[['Upcoming stays', groups.upcoming], ['Mock bookings', groups.mock], ['Past stays', groups.past]].map(([title, rows]) => rows.length > 0 && (
+            <View key={title} style={[styles.staysList, { marginBottom: 24 }]}>
+              <Text style={styles.upcomingTitle}>{title}</Text>
+              {rows.map((booking) => <UpcomingStay key={booking.id} booking={booking} onReferencePress={() => setReferenceBooking(booking)} onReceiptPress={() => setReceiptBooking(booking)} onPolicyPress={() => setPolicyBooking(booking)} />)}
+            </View>
+          ))}
+        </>}
       </ScrollView>
-      {referenceBooking && <BookingReferenceModal booking={referenceBooking} visible onClose={() => setReferenceBooking(null)} />}
-      {policyBooking && <Modal transparent visible animationType="fade" onRequestClose={() => setPolicyBooking(null)}><Pressable style={styles.modalBackdrop} onPress={() => setPolicyBooking(null)}><Pressable style={styles.referenceModal} onPress={(event) => event.stopPropagation()}><Text style={styles.modalTitle}>Cancellation policy</Text><Text style={styles.modalDescription}>{policyBooking.policy?.text || 'Contact Hoysii support to review the original terms for this stay.'}</Text>{policyBooking.policy?.free_cancellation_until && <Text style={styles.modalDescription}>Free cancellation until {new Date(policyBooking.policy.free_cancellation_until).toLocaleString('en-US', { timeZone: 'Africa/Mogadishu' })} (Somalia time).</Text>}<TouchableOpacity style={styles.modalButton} onPress={() => setPolicyBooking(null)}><Text style={styles.modalButtonText}>Done</Text></TouchableOpacity></Pressable></Pressable></Modal>}
-      {receiptBooking && <ReceiptModal booking={receiptBooking} visible onClose={() => setReceiptBooking(null)} />}
+      {bookingsOwner === userId && referenceBooking && <BookingReferenceModal booking={referenceBooking} visible onClose={() => setReferenceBooking(null)} />}
+      {bookingsOwner === userId && policyBooking && <Modal transparent visible animationType="fade" onRequestClose={() => setPolicyBooking(null)}><Pressable style={styles.modalBackdrop} onPress={() => setPolicyBooking(null)}><Pressable style={styles.referenceModal} onPress={(event) => event.stopPropagation()}><Text style={styles.modalTitle}>Cancellation policy</Text><Text style={styles.modalDescription}>{policyBooking.policy?.text || 'Contact Hoysii support to review the original terms for this stay.'}</Text>{policyBooking.policy?.free_cancellation_until && <Text style={styles.modalDescription}>Free cancellation until {new Date(policyBooking.policy.free_cancellation_until).toLocaleString('en-US', { timeZone: 'Africa/Mogadishu' })} (Somalia time).</Text>}<TouchableOpacity style={styles.modalButton} onPress={() => setPolicyBooking(null)}><Text style={styles.modalButtonText}>Done</Text></TouchableOpacity></Pressable></Pressable></Modal>}
+      {bookingsOwner === userId && receiptBooking && <ReceiptModal booking={receiptBooking} visible onClose={() => setReceiptBooking(null)} />}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  mockPill: { backgroundColor: '#FEF3C7' }, mockText: { color: '#92400E' }, mockNotice: { fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 19, color: '#92400E', marginTop: 12, marginBottom: 12 },
   container: { flex: 1, backgroundColor: '#FAFAFA' }, scrollView: { flex: 1 }, scrollContent: { paddingHorizontal: 20 },
   headerTitle: { fontFamily: 'Inter_700Bold', fontSize: 28, color: '#111827', marginBottom: 22 }, upcomingTitle: { fontFamily: 'Inter_700Bold', fontSize: 17, color: '#111827', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.6 }, staysList: { gap: 14 },
   stayCard: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 18, shadowColor: '#111827', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.06, shadowRadius: 18, elevation: 3 }, confirmedPill: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#DCFCE7', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 99 }, confirmedText: { fontFamily: 'Inter_600SemiBold', fontSize: 12, color: '#166534' }, referenceButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, paddingVertical: 4 }, referenceButtonText: { fontFamily: 'Inter_600SemiBold', fontSize: 14, color: '#489CFC' },

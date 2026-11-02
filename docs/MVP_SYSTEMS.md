@@ -1,4 +1,4 @@
-# Current MVP systems — 1 November 2026
+# Current MVP systems — 2 November 2026
 
 The owner explicitly approved the three product screenshots and their annotations as the current scope, including the full basic hotel portal. This document supersedes older flight/driver/transfer plans. Unrelated future work stays in `later.md`.
 
@@ -22,7 +22,7 @@ Partners receive guest name, stay dates, room/guest counts and operational respo
 
 ## Booking/payment boundaries
 
-Payment preview remains the existing transient confirmation-screen mock. It creates no reservation, hold, payment, receipt email, Trips record or admin/partner record. Saving a profile/review/favorite is a normal authenticated backend operation; the preview does not make those actions fake.
+The current stakeholder mode saves shared `is_test` bookings in the existing D1 database. All signed-in travelers can complete simulated checkout while the API's `STAKEHOLDER_TESTING` flag is `true`. Travelers see the normal confirmation, Trips, receipt and stay-progress interfaces; admin and the assigned hotel see the same booking with a test marker. Test inventory pools, funds and reviews remain separate from live data, and no test reservation emails are sent. Earlier account-scoped AsyncStorage mocks remain historical device-local records; new checkout no longer uses them. See `STAKEHOLDER_TESTING.md` for migration 0007, exact release steps and the stakeholder walkthrough.
 
 The real backend path is ready for a future payment adapter: an actual recorded payment confirms the traveler immediately, starts the internal 30-minute acknowledgement timer and makes the paid booking visible to staff and the assigned hotel. A hotel decline raises an exception without changing the traveler's confirmed display. Hoysii operations handles replacement/refund. Gateway initiation/settlement/refund integration and live provider testing remain deferred until actual APIs are available.
 
@@ -30,7 +30,7 @@ Payout entries are records of separately arranged transfers: scheduled → paid/
 
 ## Reviews and search
 
-One review per saved booking, with 1–5 stars and 10–1,000 characters. The owning traveler can edit it; editing cannot unhide a moderated review. Cancelled/refunded/non-owned/unpaid/mock bookings are ineligible. Public lists/averages include visible reviews still tied to an eligible booking at that hotel. Reviews of confirmed bookings are labelled as from booked guests, not as proof the stay was already completed.
+One review per saved booking, with 1–5 stars and 10–1,000 characters. The owning traveler can edit it; editing cannot unhide a moderated review. Cancelled/refunded/non-owned/unpaid bookings and historical device-local mocks are ineligible. Server-saved stakeholder bookings can exercise isolated test reviews while testing is enabled. Public lists/averages include visible reviews still tied to an eligible booking at that hotel. Reviews of confirmed bookings are labelled as from booked guests, not as proof the stay was already completed.
 
 Search filters operate on the API's returned matching hotels after date/guest availability filtering. The existing recommended order remains the default. Global date selection continues allowing future dates; the chosen room/property inventory determines availability. Filtering/saving does not reserve a room.
 
@@ -67,7 +67,7 @@ Search filters operate on the API's returned matching hotels after date/guest av
 3. Push the branch and merge through your normal GitHub PR process. Existing API/admin/traveler Cloudflare Git integrations update those services; Codex does not push or deploy.
 4. In Cloudflare, connect a new **`hoysii-partners`** Worker to the same GitHub repository with root **`apps/partners`**, production branch `main`, build **`npm run build:cloudflare`**, Git deploy command **`npx wrangler deploy`**, and domain **`partners.hoysii.com`**. This deploy command is a Git-build setting, not a manual Codex action. Set public build variable `NEXT_PUBLIC_API_URL=https://api.hoysii.com`. The portal Worker has no auth secret, D1 or R2 binding; only the API holds those.
 5. Native app changes require the normal mobile release/update process separately. Existing installed apps do not update when Cloudflare deploys.
-6. After Git deployments, sign into admin, assign a partner email to its hotel, accept the invitation in the partner portal and verify its code. Check rates/blocks against traveler search; test acknowledgement/check-in/completion on an appropriate real recorded booking. Mock checkout deliberately does not create such a booking.
+6. After Git deployments, sign into admin, assign a partner email to its hotel, accept the invitation in the partner portal and verify its code. Check rates/blocks against traveler search; test acknowledgement/check-in/completion on an appropriate real recorded booking. Stakeholder checkout now creates a shared test booking for these steps; a real money transfer remains unimplemented.
 
 For local development: run `npm ci` then `npm run dev` in `apps/partners` (port 3001). Set `NEXT_PUBLIC_API_URL` in an ignored `.env.local` for a local API if needed. Set `PARTNER_LOCAL_ORIGINS=http://localhost:3001` only in the local API's ignored `.dev.vars`; never broaden production origins for convenience. Existing automated API tests use in-memory SQLite and mock email acceptance, with no production writes or external email deliveries.
 
