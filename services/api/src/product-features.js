@@ -1,4 +1,4 @@
-import { stakeholderTesting } from "./testing.js";
+import { stakeholderTesting, hotelVisible, hotelRetired, RETIRED_HOTEL_IDS } from "./testing.js";
 import { all, db, first, run } from "./db.js";
 import { createPartnerAuth, partnerOrigins, sendAuthEmail } from "./auth.js";
 import { adminOperations } from "./operations.js";
@@ -58,7 +58,7 @@ export async function publicReviews(request, env, url) {
   const match = url.pathname.match(/^\/v1\/hotels\/([^/]+)\/reviews$/);
   if (!match || request.method !== "GET") return null;
   const database = db(env);
-  if (!(await first(database, "SELECT id FROM hotels WHERE id=?", match[1])))
+  if (!hotelVisible(await first(database, "SELECT id,stakeholder_only FROM hotels WHERE id=?", match[1]), env))
     reject("Hotel not found.", 404);
   const aggregate = await first(
     database,
@@ -92,18 +92,18 @@ export async function travelerFeatures(request, env, url, user) {
   if (url.pathname === "/v1/me/saved-hotels" && request.method === "GET") {
     const rows = await all(
       database,
-      "SELECT h.id,h.name,h.city,h.images FROM saved_hotels s JOIN hotels h ON h.id=s.hotel_id WHERE s.user_id=? ORDER BY s.created_at DESC,h.id",
+      "SELECT h.id,h.name,h.city,h.images,h.stakeholder_only FROM saved_hotels s JOIN hotels h ON h.id=s.hotel_id WHERE s.user_id=? ORDER BY s.created_at DESC,h.id",
       user.id,
     );
     return json(
-      rows.map((row) => ({ ...row, images: decodeList(row.images) })),
+      rows.filter(row => hotelVisible(row, env)).map((row) => ({ ...row, images: decodeList(row.images) })),
     );
   }
   const saved = url.pathname.match(/^\/v1\/me\/saved-hotels\/([^/]+)$/);
   if (saved && ["POST", "DELETE"].includes(request.method)) {
     if (request.method === "POST") {
       if (
-        !(await first(database, "SELECT id FROM hotels WHERE id=?", saved[1]))
+        !hotelVisible(await first(database, "SELECT id,stakeholder_only FROM hotels WHERE id=?", saved[1]), env)
       )
         reject("Hotel not found.", 404);
       await run(
@@ -182,8 +182,8 @@ export async function dashboard(env) {
   const summary = await first(
     database,
     `SELECT
-    (SELECT COUNT(*) FROM hotels) AS hotels,
-    (SELECT COALESCE(SUM(total_units),0) FROM rooms) AS rooms,
+    (SELECT COUNT(*) FROM hotels WHERE id NOT IN (${RETIRED_HOTEL_IDS.map(()=>'?').join(',')})) AS hotels,
+    (SELECT COALESCE(SUM(total_units),0) FROM rooms WHERE hotel_id NOT IN (${RETIRED_HOTEL_IDS.map(()=>'?').join(',')})) AS rooms,
     (SELECT COUNT(*) FROM "user") AS travelers,
     (SELECT COUNT(*) FROM bookings) AS bookings,
     (SELECT COUNT(*) FROM bookings WHERE payment_status IN ('paid','partially_refunded') AND booking_status IN ('confirmed','checked_in')) AS active_stays,
@@ -196,6 +196,7 @@ export async function dashboard(env) {
     (SELECT COALESCE(SUM(amount_cents),0) FROM hotel_payouts WHERE status='paid' AND is_test=0) AS paid_out_cents,
     (SELECT COUNT(*) FROM reviews r JOIN bookings b ON b.id=r.booking_id WHERE r.hidden=0 AND r.hotel_id=b.hotel_id AND ${eligible} AND b.is_test=0) AS published_reviews,
     (SELECT COUNT(*) FROM bookings WHERE is_test=1) AS test_bookings`,
+    ...RETIRED_HOTEL_IDS, ...RETIRED_HOTEL_IDS,
   );
   const days = await all(
     database,
@@ -335,6 +336,8 @@ export async function adminFeatures(request, env, url, admin) {
     )
       reject("Choose a hotel, positive USD amount, valid period and note.");
     const id = crypto.randomUUID();
+    const payoutHotel = await first(database, "SELECT stakeholder_only FROM hotels WHERE id=?", body.hotel_id);
+    if (payoutHotel.stakeholder_only && !stakeholderTesting(env)) reject("This hotel supports test payouts only.", 409);
     await run(
       database,
       "INSERT INTO hotel_payouts(id,hotel_id,amount_cents,status,period_start,period_end,note,recorded_by,is_test) VALUES(?,?,?,'scheduled',?,?,?,?,?)",
@@ -425,11 +428,11 @@ export async function partnerRoutes(request, env, url, uploadMedia) {
     return json({ user: { id: user.id, name: user.name, email: user.email }, stakeholder_testing: stakeholderTesting(env) });
   if (url.pathname === "/v1/partner/hotels" && request.method === "GET")
     return json(
-      await all(
+      (await all(
         database,
         "SELECT h.id,h.name,h.city FROM hotels h JOIN partner_memberships m ON m.hotel_id=h.id WHERE m.email=? COLLATE NOCASE AND m.active=1 ORDER BY h.name",
         user.email,
-      ),
+      )).filter(item => !hotelRetired(item.id)),
     );
   if (url.pathname === "/v1/partner/media" && request.method === "POST")
     return uploadMedia(request, env, url);

@@ -132,6 +132,7 @@ export default function Dashboard() {
                 </div>
 
                 <div className="p-5">
+                  {hotel.stakeholder_only && <p className="text-xs font-semibold text-amber-700 dark:text-amber-300 mb-2">Stakeholder testing only · simulated rates and availability</p>}
                   <div className="flex justify-between items-start mb-2">
                     <h3 className="font-bold text-lg text-slate-900 dark:text-white line-clamp-1">{hotel.name}</h3>
                     {hotel.rating && (

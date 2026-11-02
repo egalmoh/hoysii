@@ -1,5 +1,6 @@
 import { Stack } from 'expo-router';
 import { useFonts } from 'expo-font';
+import ResponsiveShell from '../components/ResponsiveShell';
 
 import {
   Inter_300Light,
@@ -23,6 +24,7 @@ export default function RootLayout() {
   }
 
   return (
+    <ResponsiveShell>
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#FAFAFA' } }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="searchresults" options={{ headerShown: false }} />
@@ -33,5 +35,6 @@ export default function RootLayout() {
         <Stack.Screen name="(modals)/confirmation" options={{ headerShown: false, presentation: 'card' }} />
         <Stack.Screen name="(modals)/terms" options={{ presentation: 'transparentModal', contentStyle: { backgroundColor: 'transparent' } }} />
       </Stack>
+    </ResponsiveShell>
   );
 }

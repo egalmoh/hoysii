@@ -3,6 +3,13 @@ export function isHotelVerified(hotel) {
   return hotel?.is_verified === true || hotel?.is_verified === 1;
 }
 
+export function recommendedHotels(hotels = []) {
+  const order = hotel => hotel.is_recommended === true && Number.isInteger(hotel.recommended_order) && hotel.recommended_order >= 0
+    ? hotel.recommended_order : Number.MAX_SAFE_INTEGER;
+  return hotels.filter(hotel => hotel.is_recommended === true || hotel.rating >= 4.5)
+    .sort((a, b) => order(a) - order(b));
+}
+
 export function hotelOffers(hotel) {
   const saved = [hotel?.amenities, hotel?.security_features].flatMap((items) => Array.isArray(items) ? items : []);
   const seen = new Set();

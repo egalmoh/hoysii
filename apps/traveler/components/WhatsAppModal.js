@@ -305,6 +305,7 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: '#FFFFFF',
+    ...Platform.select({ web: { alignSelf: 'center', width: '100%', maxWidth: 560 } }),
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 20,
@@ -315,7 +316,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 10,
     elevation: 10,
-    ...Platform.select({ web: { width: '100%', maxWidth: '100%', maxHeight: '100%', flexShrink: 1, minHeight: 0 } }),
+    ...Platform.select({ web: { width: '100%', maxWidth: 560, maxHeight: '100%', flexShrink: 1, minHeight: 0 } }),
   },
   sheetScroll: {
     flexGrow: 0,

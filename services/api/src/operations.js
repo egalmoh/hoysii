@@ -1,4 +1,4 @@
-import { stakeholderTesting, TEST_PROVIDER } from './testing.js';
+import { stakeholderTesting, TEST_PROVIDER, hotelRetired } from './testing.js';
 import { all, db, first, run } from './db.js';
 import { activity, bookingDetail, bookingRecord, exception, holdExpired, notification, parse, refundQuote, reject, statement, text, today, travelerBooking, validRange } from './booking-service.js';
 import { paymentProvider } from './payments.js';
@@ -193,6 +193,8 @@ export async function adminOperations(request, env, url, admin) {
       const room = await first(database, 'SELECT * FROM rooms WHERE id=?', body.room_id);
       if (!room || room.capacity_adults < (booking.adults || booking.guests)) reject('Choose a suitable replacement room.');
       const hotel = await first(database, 'SELECT * FROM hotels WHERE id=?', room.hotel_id);
+      if (hotelRetired(hotel.id)) reject('This test hotel has been retired.', 409);
+      if (hotel.stakeholder_only && !booking.is_test) reject('This replacement room is for stakeholder testing only.', 409);
       const hotelSnapshot = { id: hotel.id, name: hotel.name, city: hotel.city, address: parse(hotel.address, []), images: parse(hotel.images, []) };
       const roomSnapshot = { id: room.id, name: room.name, images: parse(room.images, []), price: booking.nightly_cents / 100 };
       await database.batch([

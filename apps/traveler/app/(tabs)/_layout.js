@@ -2,10 +2,12 @@ import { Tabs } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../lib/auth';
+import { useWebLayout } from '../../lib/use-web-layout';
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const { isSignedIn } = useAuth();
+  const { wide } = useWebLayout();
   
   return (
     <Tabs
@@ -14,6 +16,7 @@ export default function TabLayout() {
         tabBarActiveTintColor: '#489CFC',
         tabBarInactiveTintColor: '#6B7280',
         tabBarStyle: {
+          display: wide ? 'none' : 'flex',
           backgroundColor: '#FAFAFA',
           borderTopWidth: 0,
           height: 70 + insets.bottom,

@@ -12,6 +12,7 @@ import SearchModal from '../components/SearchModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { Easing, Extrapolation, interpolate, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { useWebLayout } from '../lib/use-web-layout';
 
 function formatDateLabel(dateString) {
   if (!dateString) return null;
@@ -32,6 +33,8 @@ export default function SearchResultsScreen() {
   const params = useLocalSearchParams();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const webLayout = useWebLayout();
+  const { wide } = webLayout;
 
   const locationName = typeof params.locationName === 'string' ? params.locationName : '';
   const checkIn = typeof params.checkIn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(params.checkIn) ? params.checkIn : '';
@@ -138,15 +141,15 @@ export default function SearchResultsScreen() {
   const filteredHotels = filterHotels(hotels, filters);
   const amenities = [...new Set(hotels.flatMap(hotel => hotel.amenities || []))].sort();
 
-  const resultsCardWidth = Math.min(400, width - insets.left - insets.right - 40);
+  const resultsCardWidth = wide ? webLayout.cardWidth : Math.min(400, width - insets.left - insets.right - 40);
   const resultsCardHeight = Math.round(resultsCardWidth * (399 / 400));
 
   return (
     <View 
-      style={styles.container}>
+      style={[styles.container, wide && { backgroundColor: '#FFFFFF' }]}>
       <StatusBar style="dark" />
       {/* Gradient Header with Summary Pill */}
-      <View style={styles.headerWrapper} onLayout={({ nativeEvent }) => setHeaderHeight(nativeEvent.layout.height)}>
+      {!wide && <View style={styles.headerWrapper} onLayout={({ nativeEvent }) => setHeaderHeight(nativeEvent.layout.height)}>
         <LinearGradient
           colors={['#D6EBFF', '#FFFFFF']}
           locations={[0, 0.4]}
@@ -203,7 +206,7 @@ export default function SearchResultsScreen() {
             </Animated.View>
           </View>
         </LinearGradient>
-      </View>
+      </View>}
 
       {/* Hotels List */}
       <ScrollView
@@ -212,10 +215,17 @@ export default function SearchResultsScreen() {
           paddingBottom: insets.bottom + 24,
           paddingLeft: insets.left + 20,
           paddingRight: insets.right + 20,
-        }]}
+        }, wide && { paddingLeft: 0, paddingRight: 0, paddingTop: 36, width: webLayout.contentWidth, alignSelf: 'center', alignItems: 'stretch' }]}
         contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}
       >
+        {wide && <View style={styles.desktopResultsHeading}>
+          <Text style={styles.desktopTitle}>{titleLocation}</Text>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Filters and sorting" onPress={() => setFilterVisible(true)} style={styles.desktopFilter}>
+            <Feather name="sliders" size={18} color="#374151" /><Text style={styles.desktopFilterText}>Filters and sorting</Text>
+          </TouchableOpacity>
+        </View>}
+        <View style={wide ? { flexDirection: 'row', flexWrap: 'wrap', gap: webLayout.gap, rowGap: 32 } : { alignItems: 'center', rowGap: 24 }}>
         {loading ? (
            <View style={{ marginTop: 50 }}>
              <ActivityIndicator size="large" color="#489CFC" />
@@ -232,6 +242,7 @@ export default function SearchResultsScreen() {
               index={index} 
               cardWidth={resultsCardWidth}
               cardHeight={resultsCardHeight}
+              compact={wide}
               onPress={() => router.navigate({
                 pathname: `/listingDetails/${hotel.id}`,
                 params: { checkIn, checkOut, adults: adultsParam, children: childrenParam }
@@ -239,6 +250,7 @@ export default function SearchResultsScreen() {
             />
           </View>
         )))}
+        </View>
       </ScrollView>
       {filterVisible && <SearchFilters value={filters} amenities={amenities} onClose={() => setFilterVisible(false)} onApply={value => { setFilters(value); setFilterVisible(false); }} />}
       <SearchModal
@@ -391,5 +403,9 @@ const styles = StyleSheet.create({
   cardWrapper: {
     marginBottom: 8,
   },
+  desktopResultsHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 20, marginBottom: 24 },
+  desktopTitle: { fontFamily: 'Inter_700Bold', fontSize: 24, color: '#111827', flex: 1 },
+  desktopFilter: { flexDirection: 'row', alignItems: 'center', gap: 9, borderWidth: 1, borderColor: '#DFE1E4', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 12 },
+  desktopFilterText: { fontFamily: 'Inter_500Medium', fontSize: 14, color: '#374151' },
 });
 

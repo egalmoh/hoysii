@@ -678,6 +678,7 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: '#FFFFFF',
+    ...Platform.select({ web: { width: '100%', maxWidth: 520, alignSelf: 'center' } }),
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
