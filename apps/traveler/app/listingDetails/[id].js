@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, useWindowDimensions, ScrollView } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, useWindowDimensions, ScrollView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -7,6 +7,8 @@ import Animated from 'react-native-reanimated';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { api } from '../../lib/api';
 import { ActivityIndicator } from 'react-native';
+import SaveHotelButton from '../../components/SaveHotelButton';
+import HotelReviews from '../../components/HotelReviews';
 import AvailableRoomCard from '../../components/AvailableRoomCard';
 import { hotelOffers, isHotelVerified } from '../../lib/hotel-display';
 
@@ -119,13 +121,11 @@ export default function ListingScreen() {
     amenities: (room.amenities || []).join(', '),
   }));
 
-  return (
-    <View style={styles.container}>
-      <StatusBar style="light" />
+  const navigationHeader = (
       <View pointerEvents="box-none" style={[styles.navigationHeader, {
-        paddingTop: insets.top + 4,
-        paddingLeft: insets.left + 16,
-        paddingRight: insets.right + 16,
+        paddingTop: Platform.OS === 'web' ? 16 : insets.top + 4,
+        paddingLeft: Platform.OS === 'web' ? 16 : insets.left + 16,
+        paddingRight: Platform.OS === 'web' ? 16 : insets.right + 16,
       }]}>
         <TouchableOpacity
           onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)')}
@@ -138,6 +138,12 @@ export default function ListingScreen() {
           <Text style={styles.backLabel}>Back</Text>
         </TouchableOpacity>
       </View>
+  );
+
+  return (
+    <View style={styles.container}>
+      <StatusBar style="light" />
+      {Platform.OS !== 'web' && navigationHeader}
       <ScrollView 
         style={styles.scrollView}
         contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
@@ -147,6 +153,7 @@ export default function ListingScreen() {
       >
         {/* Scrollable hotel images */}
         <View style={[styles.imageWrapper, { width, height: IMAGE_HEIGHT }]}>
+        {Platform.OS === 'web' && navigationHeader}
         <Animated.ScrollView
           ref={scrollRef}
           horizontal
@@ -239,6 +246,7 @@ export default function ListingScreen() {
               <View style={styles.divider} />
             </View>
 
+            <SaveHotelButton hotelId={hotelId} />
             {/* What this hotel offers */}
             {offers.length > 0 && <View style={styles.offersSection}>
               <Text style={styles.offersTitle}>What this hotel offers?</Text>
@@ -272,6 +280,7 @@ export default function ListingScreen() {
               ))}
             </View>
           </View>
+          <HotelReviews hotelId={hotelId} />
         </View>
       </View>
       

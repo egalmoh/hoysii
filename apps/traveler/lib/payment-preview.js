@@ -1,12 +1,17 @@
 // One transient screen preview, not a booking store. Never persisted or sent to the API.
 let currentPreview = null;
 
+// Web checkout is a mock until gateways are connected. Native release builds stay real.
+export function isPaymentPreviewEnabled(development, platform) {
+  return development === true || platform === 'web';
+}
+
 export function isPaymentPreviewId(id) {
   return typeof id === 'string' && id.startsWith('preview-');
 }
 
-export function createPaymentPreview({ userId, hotel, room, quote, adults, children }, development) {
-  if (development !== true) throw new Error('Payment previews are only available in development.');
+export function createPaymentPreview({ userId, hotel, room, quote, adults, children }, enabled) {
+  if (enabled !== true) throw new Error('Payment previews are not enabled.');
   if (!userId || !hotel?.id || !room?.id || !Number.isFinite(quote?.total_price) || quote.total_price <= 0 || !quote.check_in_date || !quote.check_out_date) {
     throw new Error('Choose a room and valid dates before previewing confirmation.');
   }
@@ -33,8 +38,8 @@ export function createPaymentPreview({ userId, hotel, room, quote, adults, child
   return currentPreview;
 }
 
-export function getPaymentPreview(id, userId, development) {
-  return development === true && userId && currentPreview?.id === id && currentPreview.user_id === userId
+export function getPaymentPreview(id, userId, enabled) {
+  return enabled === true && userId && currentPreview?.id === id && currentPreview.user_id === userId
     ? currentPreview : null;
 }
 

@@ -4,12 +4,12 @@ import { paymentProvider } from './payments.js';
 import { sendAuthEmail } from './auth.js';
 
 function requireNote(value) { const note = text(value); if (note.length < 3) reject('Add a reason or supporting note.'); return note; }
-function bookingGuard(database, booking, actor, action, note) {
+function bookingGuard(database, booking, actor, action, note, partnerEmail = null) {
   // A NOT NULL violation rolls back the entire D1 batch if the booking changed
   // after it was read. The caller can refresh instead of applying a stale decision.
   return statement(database, `INSERT INTO booking_activity (id,booking_id,actor,action,note)
-    VALUES (?,?,?,?,(SELECT ? FROM bookings WHERE id=? AND booking_status=? AND payment_status=?))`,
-  crypto.randomUUID(), booking.id, actor, action, note, booking.id, booking.booking_status, booking.payment_status);
+    VALUES (?,?,?,?,(SELECT ? FROM bookings WHERE id=? AND booking_status=? AND payment_status=? AND hotel_id=? AND room_id=? AND (? IS NULL OR EXISTS(SELECT 1 FROM partner_memberships m WHERE m.email=? COLLATE NOCASE AND m.hotel_id=bookings.hotel_id AND m.active=1))))`,
+  crypto.randomUUID(), booking.id, actor, action, note, booking.id, booking.booking_status, booking.payment_status, booking.hotel_id, booking.room_id, partnerEmail, partnerEmail);
 }
 function paymentStatements(env, booking, payment, recovery) {
   const database = db(env);
@@ -137,6 +137,7 @@ export async function adminOperations(request, env, url, admin) {
     const action = detailMatch[2];
     const booking = await bookingRecord(env, id);
     if (!booking) reject('Booking not found.', 404);
+    if (admin.partnerEmail && !await first(database, 'SELECT id FROM partner_memberships WHERE email=? COLLATE NOCASE AND hotel_id=? AND active=1', admin.partnerEmail, booking.hotel_id)) reject('Hotel access is required.', 403);
     if (request.method === 'GET' && !action) return json(await bookingDetail(env, id));
     if (!['POST', 'PATCH'].includes(request.method)) reject('Not found.', 404);
     const body = await request.json();
@@ -145,7 +146,7 @@ export async function adminOperations(request, env, url, admin) {
     if (action === 'acknowledgement') {
       if (!['acknowledged', 'declined'].includes(body.status) || booking.booking_status !== 'confirmed') reject('Only a paid confirmed reservation can be acknowledged or declined.', 409);
       await database.batch([
-        bookingGuard(database, booking, admin.id, `hotel_${body.status}`, note),
+        bookingGuard(database, booking, admin.id, `hotel_${body.status}`, note, admin.partnerEmail),
         statement(database, 'UPDATE bookings SET hotel_ack_status=?, hotel_ack_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND booking_status=\'confirmed\'', body.status, id),
         statement(database, "UPDATE booking_exceptions SET status='resolved',resolved_at=CURRENT_TIMESTAMP WHERE booking_id=? AND kind IN ('hotel_ack_overdue','hotel_contact_missing') AND status='open'", id),
         ...(body.status === 'declined' ? [exception(database, id, 'hotel_declined', note)] : []),
@@ -189,7 +190,7 @@ export async function adminOperations(request, env, url, admin) {
       const transitions = { checked_in: 'confirmed', completed: 'checked_in' };
       if (transitions[body.status] !== booking.booking_status || booking.payment_status !== 'paid' || booking.hotel_ack_status !== 'acknowledged') reject('This stay transition requires a paid, acknowledged reservation in the preceding state.', 409);
       const column = body.status === 'checked_in' ? 'checked_in_at' : 'completed_at';
-      await database.batch([bookingGuard(database, booking, admin.id, body.status, note), statement(database, `UPDATE bookings SET booking_status=?,${column}=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND booking_status=?`, body.status, id, transitions[body.status])]);
+      await database.batch([bookingGuard(database, booking, admin.id, body.status, note, admin.partnerEmail), statement(database, `UPDATE bookings SET booking_status=?,${column}=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND booking_status=?`, body.status, id, transitions[body.status])]);
     } else reject('Not found.', 404);
     return json(await bookingDetail(env, id));
   }

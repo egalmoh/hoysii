@@ -1,14 +1,15 @@
 # Hoysii
 
-This repository keeps the traveler app, admin panel, and API together as separate projects. Each has its own dependencies, lockfile, build, and deployment. They communicate through the API; they do not share admin and traveler sessions.
+This repository keeps the traveler app, admin panel, hotel portal, and API together as separate projects. Each has its own dependencies, lockfile, build, and deployment. They communicate through the API; they do not share traveler, admin or partner sessions.
 
 | Project | Source | Runs as |
 | --- | --- | --- |
 | Traveler app | `apps/traveler/` | Expo on iOS/Android; `hoysii-web` Cloudflare Worker for web |
 | Admin panel | `apps/admin/` | Next.js on the `hoysii-admin` Cloudflare Worker |
+| Hotel partner portal | `apps/partners/` | Next.js on a new `hoysii-partners` Worker (owner must connect Git hosting) |
 | API | `services/api/` | `hoysii-api` Cloudflare Worker, with D1 and R2 |
 
-The hotel partner portal is planned for `apps/partners/` when it is implemented. Shared packages can be added under `packages/` when there is code worth sharing. The projects currently install independently because the Expo app and Next.js admin use different React versions; there is no root npm workspace or shared lockfile yet.
+The basic hotel partner portal is implemented under `apps/partners/`. Its production Worker/domain/Git connection and independent auth secret require owner setup; see [current MVP and release steps](docs/MVP_SYSTEMS.md). Shared packages can be added under `packages/` when there is code worth sharing. The projects currently install independently because the Expo app and Next.js admin use different React versions; there is no root npm workspace or shared lockfile yet.
 
 ## Local development
 
@@ -17,6 +18,7 @@ Run commands inside the relevant project directory:
 ```sh
 cd apps/traveler && npm install && npm start
 cd apps/admin && npm install && npm run dev
+cd apps/partners && npm ci && npm run dev
 cd services/api && npm install && npm run dev
 ```
 
@@ -38,7 +40,7 @@ These deploy commands are settings for Cloudflare's Git integration, not instruc
 
 The web Worker serves the production Expo export in `dist/`, including a single-page fallback for direct links and refreshes. It has no database or authentication secret bindings. It calls the existing API, which owns D1, R2 and separate traveler/admin sessions. Set the public build variable `EXPO_PUBLIC_API_URL=https://api.hoysii.com` in the web Git build settings; this is also the app's default. Never put server secrets in an `EXPO_PUBLIC_*` variable.
 
-Locally, run `npm run build:web`, then `npm run preview:web` from `apps/traveler` to inspect the production assets at `http://localhost:4173`. The public API only allows configured Hoysii origins; localhost is not equivalent to the production site for cross-origin authentication testing. Development payment previews are disabled in this production export.
+Locally, run `npm run build:web`, then `npm run preview:web` from `apps/traveler` to inspect the production assets at `http://localhost:4173`. The public API only allows configured Hoysii origins; localhost is not equivalent to the production site for cross-origin authentication testing. Web checkout intentionally previews payment confirmation, including in published builds, until gateways are connected. The preview is labeled, charges nothing and creates no reservation. Native release builds retain the real payment path. See `lib/payment-preview.js` in the traveler project for the single mode decision; switch web out of preview when implementing real gateway checkout.
 
 The owner must merge the API allowed-origin change with the web release so both `https://hoysii.com` and `https://www.hoysii.com` can authenticate and call the API. No database migration is required. After the first successful Git build, verify the two custom domains in Cloudflare. If an old website CNAME conflicts, replace only that website record; preserve mail and other subdomains. Check live search, hotel/room views, direct-link refreshes, email verification/sign-in/sign-out and Trips. Real online payment remains unavailable until a payment provider is connected.
 

@@ -42,14 +42,14 @@ When provider APIs arrive, implement their documented initiation, verification a
 ## Hotel acknowledgement and exceptions
 
 - Payment starts a 30-minute hotel acknowledgement deadline and queues reservation details for the hotel's configured email plus an operations alert.
-- Admin records acknowledgement or decline with a note. A future partner portal can use the same data and state transition rules; the portal itself remains in `later.md`.
+- Admin or an assigned hotel partner records acknowledgement or decline with a note. The basic portal in `apps/partners` uses the same state transitions with hotel-specific permissions. See `MVP_SYSTEMS.md` for migration 0006 and portal release steps.
 - The scheduled handler raises an overdue exception, expires unpaid holds and retries queued notifications. Missing hotel contact details and exhausted delivery attempts are visible as exceptions.
 - Operations can assign an exception, add notes, record the hotel's response, arrange a replacement at the customer's agreed total/terms, or cancel and start the refund workflow. Replacement should first be agreed with the traveler.
 - Admin operations shows today's check-ins/check-outs, acknowledgement deadlines, open exceptions and refunds requiring action. Times use `Africa/Mogadishu`.
 
 ## Cancellation and refunds
 
-Hotel policy settings include text, free-cancellation hours and the percentage penalty after the cutoff. Leave the free-cancellation window unset when the terms need manual review. Do not enter a percentage that contradicts the hotel's policy text. The agreed policy and cutoff are saved on booking; customer cancellation estimates use the request time rather than penalizing the customer for staff processing delay.
+New bookings preserve Hoysii's original cancellation rule: free cancellation until 24 hours before check-in, followed by a refund of the total paid minus the saved first-night room rate. The deadline updates with selected dates and uses the hotel's check-in time in `Africa/Mogadishu`. The app displays the original two lines with the calculated date. Admin can edit stay times; the cancellation rule is fixed, rather than an editable percentage. The API saves `penalty_type: first_night` and the deadline in each new booking snapshot. Refund calculations use that saved nightly rate, including after hotel rate changes. Previously saved percentage policies and historical bookings without terms keep their existing handling. No migration or production data rewrite is needed. Customer cancellation estimates use the request time rather than penalizing the customer for staff processing delay.
 
 Cancellation releases stock. It does not mark money refunded. Refunds move through requested → approved → processing/completed, with failed → approved for a retry. Completing a manual refund requires its real transfer reference and a note. No gateway refund is sent without a provider adapter. Full and partial refunds update the payment status only after completion.
 
@@ -85,11 +85,11 @@ Admin writes require the independent admin session and a configured admin/localh
 
 Run `npm start` inside `apps/traveler` and use the normal Explore screen. Hotel data, room availability, quotes and sign-in use the existing API configured by `EXPO_PUBLIC_API_URL`. There is no separate test app, API server, database, account or environment flag.
 
-In development (`__DEV__`), select a hotel, dates, room and payment method, then press **Pay Securely**. The app opens the existing confirmation screen using the selected hotel and quote. The checkout displays a payment-preview notice and the confirmation reference begins with `PREVIEW-`.
+In development (`__DEV__`) and on web (including the published web build), select a hotel, dates, room and payment method, then press **Pay Securely**. The app opens the existing confirmation screen using the selected hotel and quote. The checkout displays a payment-preview notice and the confirmation reference begins with `PREVIEW-`. Both checkout and confirmation use the same `isPaymentPreviewEnabled` decision in `lib/payment-preview.js`.
 
 The mock happens before any booking or payment POST: it does not create an inventory hold, charge money, notify a hotel or send a receipt email. A single temporary JavaScript object supplies this screen and is cleared when leaving it; it is not persisted in storage or a database. The preview will not appear in Trips or admin. Normal authentication and profile actions still use the existing backend.
 
-Release builds use the real booking/payment path and cannot create or open payment previews. The production provider remains unconfigured until a real gateway adapter is connected. This preview checks the screens and navigation; it does not verify gateway integration or backend settlement. No migration or deployment is required for previewing locally.
+Native release builds use the real booking/payment path and cannot create or open payment previews. Web release builds intentionally keep the mock enabled until real checkout is connected. Disable the web preview mode when implementing gateway checkout. The backend provider remains unconfigured until a real gateway adapter is connected. This preview checks the screens and navigation; it does not verify gateway integration or backend settlement. Refreshing a preview confirmation expires its in-memory data; it never fabricates a persisted booking. No migration is required. The owner must push/merge these changes for the published site and API to update.
 
 Traveler helper checks: `node --test test/*.test.js` inside `apps/traveler`.
 

@@ -176,7 +176,7 @@ export default function HotelEditor({ params }) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-gray-50 dark:bg-gray-900">
         <p className="text-xl font-semibold">Hotel not found</p>
-        <Link href="/" className="text-brand-500 hover:underline">Go back home</Link>
+        <Link href="/hotels" className="text-brand-500 hover:underline">Go back home</Link>
       </div>
     );
   }
@@ -188,7 +188,7 @@ export default function HotelEditor({ params }) {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/" className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-gray-800 transition-colors">
+            <Link href="/hotels" className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-gray-800 transition-colors">
               <ArrowLeft className="w-6 h-6" />
             </Link>
             <div>

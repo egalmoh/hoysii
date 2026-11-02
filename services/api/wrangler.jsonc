@@ -23,10 +23,11 @@
   "vars": {
     "BETTER_AUTH_URL": "https://api.hoysii.com",
     "ADMIN_PANEL_URL": "https://admin.hoysii.com",
+    "PARTNER_PANEL_URL": "https://partners.hoysii.com",
     "AUTH_EMAIL_FROM": "no-reply@auth.hoysii.com",
     "TRUSTED_ORIGINS": "https://admin.hoysii.com,https://hoysii.com,https://www.hoysii.com,hoysii://"
   },
   "send_email": [{ "name": "SEND_EMAIL" }]
-  // Set BETTER_AUTH_SECRET, ADMIN_AUTH_SECRET, ADMIN_EMAIL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
+  // Set BETTER_AUTH_SECRET, ADMIN_AUTH_SECRET, PARTNER_AUTH_SECRET, ADMIN_EMAIL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
   // APPLE_CLIENT_ID, APPLE_TEAM_ID, APPLE_KEY_ID, and APPLE_PRIVATE_KEY as Worker secrets.
 }
