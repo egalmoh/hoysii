@@ -1,5 +1,5 @@
 // Real provider adapters belong here once their APIs and credentials are available.
-// This registry intentionally has no production mock or unsigned webhook endpoint.
+// Real adapters remain separate from the server-gated stakeholder simulator. There is no unsigned success webhook.
 const providers = new Map();
 
 export function paymentProvider(name) {

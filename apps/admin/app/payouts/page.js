@@ -51,13 +51,13 @@ export default function Payouts() {
   const update = async (r, status) => {
     const note = window.prompt(
       status === "paid"
-        ? "Evidence/note for the payment already made"
+        ? r.is_test ? "Supporting note for this simulated payout" : "Evidence/note for the payment already made"
         : "Reason for cancelling",
     );
     if (!note) return;
     const reference =
       status === "paid"
-        ? window.prompt("Actual transfer transaction reference")
+        ? r.is_test ? "TEST" : window.prompt("Actual transfer transaction reference")
         : null;
     if (status === "paid" && !reference) return;
     setBusy(true);
@@ -147,6 +147,7 @@ export default function Payouts() {
           <p>
             {r.period_start} → {r.period_end} · {r.status}
           </p>
+          {Boolean(r.is_test) && <p className="text-amber-700">Stakeholder test payout · no transfer occurred</p>}
           <p>{r.note}</p>
           {r.reference && <p>Transfer reference: {r.reference}</p>}
           {r.status === "scheduled" && (

@@ -1,7 +1,8 @@
+import { stakeholderTesting } from "./testing.js";
 import { all, db, first, run } from "./db.js";
 import { createPartnerAuth, partnerOrigins, sendAuthEmail } from "./auth.js";
 import { adminOperations } from "./operations.js";
-import { ACTIVE_BOOKING_FILTER, addDays } from "./availability.js";
+import { activeBookingFilter, addDays } from "./availability.js";
 import { reject, today, validDate, validRange } from "./booking-service.js";
 
 const json = Response.json;
@@ -61,7 +62,7 @@ export async function publicReviews(request, env, url) {
     reject("Hotel not found.", 404);
   const aggregate = await first(
     database,
-    `SELECT COUNT(*) AS count, ROUND(AVG(r.rating),1) AS average FROM reviews r JOIN bookings b ON b.id=r.booking_id WHERE r.hotel_id=? AND r.hidden=0 AND b.hotel_id=r.hotel_id AND ${eligible}`,
+    `SELECT COUNT(*) AS count, ROUND(AVG(r.rating),1) AS average FROM reviews r JOIN bookings b ON b.id=r.booking_id WHERE r.hotel_id=? AND r.hidden=0 AND b.hotel_id=r.hotel_id AND ${eligible} AND b.is_test=0`,
     match[1],
   );
   const offset = Number(url.searchParams.get("offset") || 0);
@@ -69,7 +70,7 @@ export async function publicReviews(request, env, url) {
     reject("Invalid review page.");
   const records = await all(
     database,
-    `SELECT r.id,r.rating,r.comment,r.created_at,u.name FROM reviews r JOIN "user" u ON u.id=r.user_id JOIN bookings b ON b.id=r.booking_id WHERE r.hotel_id=? AND r.hidden=0 AND b.hotel_id=r.hotel_id AND ${eligible} ORDER BY r.created_at DESC,r.id LIMIT 20 OFFSET ?`,
+    `SELECT r.id,r.rating,r.comment,r.created_at,u.name FROM reviews r JOIN "user" u ON u.id=r.user_id JOIN bookings b ON b.id=r.booking_id WHERE r.hotel_id=? AND r.hidden=0 AND b.hotel_id=r.hotel_id AND ${eligible} AND b.is_test=0 ORDER BY r.created_at DESC,r.id LIMIT 20 OFFSET ?`,
     match[1],
     offset,
   );
@@ -120,11 +121,18 @@ export async function travelerFeatures(request, env, url, user) {
       );
     return json({ ok: true });
   }
+  if (url.pathname === "/v1/me/test-reviews" && request.method === "GET") {
+    if (!stakeholderTesting(env)) return json([]);
+    const rows = await all(database,
+      `SELECT r.id,r.rating,r.comment,r.created_at,u.name FROM reviews r JOIN bookings b ON b.id=r.booking_id JOIN "user" u ON u.id=r.user_id WHERE r.hotel_id=? AND b.hotel_id=r.hotel_id AND b.is_test=1 AND r.hidden=0 AND ${eligible} ORDER BY r.created_at DESC LIMIT 100`,
+      url.searchParams.get("hotel_id") || "");
+    return json(rows.map(({name,...row}) => ({...row,author:text(name).split(/\s+/)[0] || "Traveler"})));
+  }
   if (url.pathname === "/v1/me/reviews" && request.method === "GET") {
     return json(
       await all(
         database,
-        `SELECT b.id AS booking_id,b.reference,b.hotel_id,b.check_in_date,b.check_out_date,b.booking_status,h.name AS hotel_name,r.id AS review_id,r.rating,r.comment,r.hidden FROM bookings b JOIN hotels h ON h.id=b.hotel_id LEFT JOIN reviews r ON r.booking_id=b.id WHERE b.user_id=? AND ${eligible} ORDER BY b.check_in_date DESC`,
+        `SELECT b.id AS booking_id,b.is_test,b.reference,b.hotel_id,b.check_in_date,b.check_out_date,b.booking_status,h.name AS hotel_name,r.id AS review_id,r.rating,r.comment,r.hidden FROM bookings b JOIN hotels h ON h.id=b.hotel_id LEFT JOIN reviews r ON r.booking_id=b.id WHERE b.user_id=? AND ${eligible} ORDER BY b.check_in_date DESC`,
         user.id,
       ),
     );
@@ -133,12 +141,13 @@ export async function travelerFeatures(request, env, url, user) {
   if (!match || request.method !== "POST") return null;
   const booking = await first(
     database,
-    `SELECT b.id,b.hotel_id FROM bookings b WHERE b.id=? AND b.user_id=? AND ${eligible}`,
+    `SELECT b.id,b.hotel_id,b.is_test FROM bookings b WHERE b.id=? AND b.user_id=? AND ${eligible}`,
     match[1],
     user.id,
   );
   if (!booking)
     reject("Reviews require your own paid, confirmed or completed stay.", 403);
+  if (booking.is_test && !stakeholderTesting(env)) reject('Test reviews are disabled.', 403);
   const body = await requestBody(request);
   const comment = text(body.comment);
   if (
@@ -182,19 +191,21 @@ export async function dashboard(env) {
     (SELECT COUNT(*) FROM bookings WHERE hotel_ack_status='pending' AND booking_status='confirmed' AND datetime(hotel_ack_due_at)<=datetime('now')) AS overdue_acknowledgements,
     (SELECT COUNT(*) FROM booking_exceptions WHERE status='open') AS open_exceptions,
     (SELECT COUNT(*) FROM refunds WHERE status NOT IN ('completed','rejected')) AS pending_refunds,
-    (SELECT COALESCE(SUM(amount_cents),0) FROM payments WHERE status='succeeded' AND currency='USD') AS received_cents,
-    (SELECT COALESCE(SUM(amount_cents),0) FROM refunds WHERE status='completed' AND currency='USD') AS refunded_cents,
-    (SELECT COALESCE(SUM(amount_cents),0) FROM hotel_payouts WHERE status='paid') AS paid_out_cents,
-    (SELECT COUNT(*) FROM reviews r JOIN bookings b ON b.id=r.booking_id WHERE r.hidden=0 AND r.hotel_id=b.hotel_id AND ${eligible}) AS published_reviews`,
+    (SELECT COALESCE(SUM(p.amount_cents),0) FROM payments p JOIN bookings b ON b.id=p.booking_id WHERE p.status='succeeded' AND p.currency='USD' AND b.is_test=0) AS received_cents,
+    (SELECT COALESCE(SUM(r.amount_cents),0) FROM refunds r JOIN bookings b ON b.id=r.booking_id WHERE r.status='completed' AND r.currency='USD' AND b.is_test=0) AS refunded_cents,
+    (SELECT COALESCE(SUM(amount_cents),0) FROM hotel_payouts WHERE status='paid' AND is_test=0) AS paid_out_cents,
+    (SELECT COUNT(*) FROM reviews r JOIN bookings b ON b.id=r.booking_id WHERE r.hidden=0 AND r.hotel_id=b.hotel_id AND ${eligible} AND b.is_test=0) AS published_reviews,
+    (SELECT COUNT(*) FROM bookings WHERE is_test=1) AS test_bookings`,
   );
   const days = await all(
     database,
-    `SELECT id,reference,check_in_date,check_out_date,booking_status,hotel_ack_status,hotel_ack_due_at,hotel_snapshot FROM bookings WHERE payment_status IN ('paid','partially_refunded') AND booking_status IN ('confirmed','checked_in') AND (check_in_date=? OR check_out_date=?) ORDER BY check_in_date,id`,
+    `SELECT id,reference,is_test,check_in_date,check_out_date,booking_status,hotel_ack_status,hotel_ack_due_at,hotel_snapshot FROM bookings WHERE payment_status IN ('paid','partially_refunded') AND booking_status IN ('confirmed','checked_in') AND (check_in_date=? OR check_out_date=?) ORDER BY check_in_date,id`,
     day,
     day,
   );
   return {
     day,
+    stakeholder_testing: stakeholderTesting(env),
     currency: "USD",
     ...summary,
     net_received_cents: summary.received_cents - summary.refunded_cents,
@@ -211,7 +222,7 @@ export async function adminFeatures(request, env, url, admin) {
     return json(
       await all(
         database,
-        "SELECT r.*,h.name AS hotel_name,b.reference FROM reviews r JOIN hotels h ON h.id=r.hotel_id JOIN bookings b ON b.id=r.booking_id ORDER BY r.created_at DESC LIMIT 500",
+        "SELECT r.*,b.is_test,h.name AS hotel_name,b.reference FROM reviews r JOIN hotels h ON h.id=r.hotel_id JOIN bookings b ON b.id=r.booking_id ORDER BY r.created_at DESC LIMIT 500",
       ),
     );
   const review = url.pathname.match(/^\/v1\/admin\/reviews\/([^/]+)$/);
@@ -326,7 +337,7 @@ export async function adminFeatures(request, env, url, admin) {
     const id = crypto.randomUUID();
     await run(
       database,
-      "INSERT INTO hotel_payouts(id,hotel_id,amount_cents,status,period_start,period_end,note,recorded_by) VALUES(?,?,?,'scheduled',?,?,?,?)",
+      "INSERT INTO hotel_payouts(id,hotel_id,amount_cents,status,period_start,period_end,note,recorded_by,is_test) VALUES(?,?,?,'scheduled',?,?,?,?,?)",
       id,
       body.hotel_id,
       amount,
@@ -334,12 +345,16 @@ export async function adminFeatures(request, env, url, admin) {
       body.period_end,
       text(body.note),
       admin.id,
+      Number(stakeholderTesting(env)),
     );
     return json({ id }, { status: 201 });
   }
   const payout = url.pathname.match(/^\/v1\/admin\/payouts\/([^/]+)$/);
   if (payout && request.method === "PATCH") {
     const body = await requestBody(request);
+    const payoutRecord = await first(database, "SELECT is_test FROM hotel_payouts WHERE id=?", payout[1]);
+    if (payoutRecord && Boolean(payoutRecord.is_test) !== stakeholderTesting(env)) reject("Payout belongs to a different mode.", 409);
+    if (payoutRecord?.is_test && body.status === "paid") body.reference = `TEST-PAYOUT-${payout[1]}`;
     if (
       !["paid", "cancelled"].includes(body.status) ||
       text(body.note).length < 3 ||
@@ -378,7 +393,7 @@ async function membership(database, email, hotelId) {
   )
     reject("Hotel not found or access denied.", 404);
 }
-const partnerBookingFields = `b.id,b.reference,b.hotel_id,b.room_id,b.check_in_date,b.check_out_date,b.guests,b.adults,b.children,b.booking_status,b.hotel_ack_status,b.hotel_ack_due_at,b.hotel_ack_at,b.checked_in_at,b.completed_at,r.name AS room_name,COALESCE(p.full_name,u.name) AS guest_name`;
+const partnerBookingFields = `b.id,b.reference,b.is_test,b.hotel_id,b.room_id,b.check_in_date,b.check_out_date,b.guests,b.adults,b.children,b.booking_status,b.hotel_ack_status,b.hotel_ack_due_at,b.hotel_ack_at,b.checked_in_at,b.completed_at,r.name AS room_name,COALESCE(p.full_name,u.name) AS guest_name`;
 
 export async function partnerRoutes(request, env, url, uploadMedia) {
   if (!url.pathname.startsWith("/v1/partner/")) return null;
@@ -407,7 +422,7 @@ export async function partnerRoutes(request, env, url, uploadMedia) {
   )
     reject("A trusted hotel portal origin is required.", 403);
   if (url.pathname === "/v1/partner/me" && request.method === "GET")
-    return json({ user: { id: user.id, name: user.name, email: user.email } });
+    return json({ user: { id: user.id, name: user.name, email: user.email }, stakeholder_testing: stakeholderTesting(env) });
   if (url.pathname === "/v1/partner/hotels" && request.method === "GET")
     return json(
       await all(
@@ -436,7 +451,7 @@ export async function partnerRoutes(request, env, url, uploadMedia) {
       return json(
         await all(
           database,
-          "SELECT id,amount_cents,currency,status,period_start,period_end,reference,created_at,paid_at FROM hotel_payouts WHERE hotel_id=? ORDER BY created_at DESC",
+          "SELECT id,is_test,amount_cents,currency,status,period_start,period_end,reference,created_at,paid_at FROM hotel_payouts WHERE hotel_id=? ORDER BY created_at DESC",
           id,
         ),
       );
@@ -550,7 +565,7 @@ export async function partnerRoutes(request, env, url, uploadMedia) {
       const days = await all(
         database,
         `WITH RECURSIVE nights(day) AS (SELECT ? UNION ALL SELECT date(day,'+1 day') FROM nights WHERE day<date(?,'-1 day'))
-        SELECT day,? - (SELECT COUNT(*) FROM bookings b WHERE b.room_id=? AND b.check_in_date<=day AND b.check_out_date>day AND ${ACTIVE_BOOKING_FILTER}) - (SELECT COALESCE(SUM(i.units),0) FROM inventory_blocks i WHERE i.room_id=? AND i.start_date<=day AND i.end_date>day) AS available FROM nights`,
+        SELECT day,? - (SELECT COUNT(*) FROM bookings b WHERE b.room_id=? AND b.check_in_date<=day AND b.check_out_date>day AND ${activeBookingFilter(stakeholderTesting(env))}) - (SELECT COALESCE(SUM(i.units),0) FROM inventory_blocks i WHERE i.room_id=? AND i.is_test=${stakeholderTesting(env) ? 1 : 0} AND i.start_date<=day AND i.end_date>day) AS available FROM nights`,
         from,
         to,
         record.total_units,
@@ -606,11 +621,12 @@ export async function partnerRoutes(request, env, url, uploadMedia) {
   if (block && request.method === "DELETE") {
     const record = await first(
       database,
-      "SELECT r.hotel_id FROM inventory_blocks i JOIN rooms r ON r.id=i.room_id WHERE i.id=?",
+      "SELECT r.hotel_id,i.is_test FROM inventory_blocks i JOIN rooms r ON r.id=i.room_id WHERE i.id=?",
       block[1],
     );
     if (!record) reject("Inventory block not found.", 404);
     await membership(database, user.email, record.hotel_id);
+    if (Boolean(record.is_test) !== stakeholderTesting(env)) reject("Inventory block belongs to a different mode.", 409);
     await run(database, "DELETE FROM inventory_blocks WHERE id=?", block[1]);
     return json({ ok: true });
   }

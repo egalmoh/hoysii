@@ -84,11 +84,11 @@ Start narrow, with Mogadishu as the first major destination.
 ## Current launch boundaries
 - Keep the existing admin Verified checkbox/badges; the owner checks them during hotel onboarding. Do not add hotel inspections or a separate Hoysii Verified subsystem.
 - Customer support stays on WhatsApp. Do not add a support-ticket system for launch.
-- Preserve the existing mock-payment screen preview until provider APIs arrive. It creates no saved reservation, payment, Trip or hotel/admin record.
+- Stakeholder testing uses the existing API and D1, with server-controlled `STAKEHOLDER_TESTING=true` for all signed-in travelers during this phase. Simulated checkout creates a shared `is_test` booking, receipt and test payment, immediately confirms the traveler, and reaches admin and the assigned hotel portal. Test and real inventory pools are separate; test financial records and reviews never enter real totals or public ratings. No test reservation emails are sent. Do not accept client success assertions for real payments. Earlier device-local mock previews remain labelled historical mocks and are not promoted to real or shared reservations.
 - A real recorded payment confirms the traveler immediately. Hotel acknowledgement remains internal; a decline or overdue response creates an operations issue without changing the customer confirmation flow.
-- Reviews require an owned, saved, paid confirmed/checked-in/completed booking. No review can be created from a mock preview.
+- Reviews require an owned, saved, paid confirmed/checked-in/completed booking. Server-saved stakeholder bookings can exercise test reviews while testing is enabled; those reviews are excluded from public lists/averages. Historical device-local mock previews cannot create reviews.
 - Flights, airport pickup, drivers, apartments and experiences remain in `docs/later.md`.
-- Read `docs/MVP_SYSTEMS.md` for the implemented interfaces, scope and owner release steps.
+- Read `docs/MVP_SYSTEMS.md` for implemented interfaces and `docs/STAKEHOLDER_TESTING.md` for the current test mode, limits and owner release steps.
 
 ## Current repo structure
 ```text

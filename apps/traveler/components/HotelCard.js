@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, Image, ScrollView, StyleSheet } from 'rea
 import { MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { isHotelVerified } from '../lib/hotel-display';
+import SaveHotelButton from './SaveHotelButton';
 
 const CARD_WIDTH = 280;
 const CARD_HEIGHT = 280;
@@ -68,6 +69,8 @@ export default function HotelCard({ hotel, index, cardWidth = CARD_WIDTH, cardHe
             </TouchableOpacity>
           ))}
         </ScrollView>
+
+        <SaveHotelButton hotelId={hotel.id} />
 
         {/* Left Arrow */}
         {activeIndex > 0 && (

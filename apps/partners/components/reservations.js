@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { apiFetch } from "../lib/api";
-export default function Reservations({ hotelId }) {
+export default function Reservations({ hotelId, testing = false }) {
   const [rows, setRows] = useState(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
@@ -116,7 +116,7 @@ export default function Reservations({ hotelId }) {
         visible.map((r) => (
           <article key={r.id} className="panel">
             <div className="row">
-              <h2>{r.reference}</h2>
+              <h2>{r.is_test ? "[Stakeholder test] " : ""}{r.reference}</h2>
               <span className="badge">
                 {r.booking_status.replaceAll("_", " ")}
               </span>
@@ -139,7 +139,7 @@ export default function Reservations({ hotelId }) {
                 Somalia time.
               </p>
             )}
-            {r.booking_status === "confirmed" && (
+            {Boolean(r.is_test) === testing && r.booking_status === "confirmed" && (
               <ActionForm
                 bookingId={r.id}
                 action="acknowledgement"
@@ -148,7 +148,7 @@ export default function Reservations({ hotelId }) {
                 statuses={["acknowledged", "declined"]}
               />
             )}
-            {((r.booking_status === "confirmed" &&
+            {Boolean(r.is_test) === testing && ((r.booking_status === "confirmed" &&
               r.hotel_ack_status === "acknowledged") ||
               r.booking_status === "checked_in") && (
               <ActionForm

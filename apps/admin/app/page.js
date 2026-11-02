@@ -63,6 +63,8 @@ export default function Dashboard() {
         <p>Loading overview…</p>
       ) : (
         <>
+          {data.stakeholder_testing && <p className="rounded-xl bg-amber-50 p-4 text-amber-900">Stakeholder testing is enabled for all signed-in travelers. New reservations and money actions are simulated.</p>}
+          <p>{data.test_bookings || 0} stakeholder test bookings · excluded from real financial totals.</p>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {metrics.map(([label, value, href]) => (
               <Link key={label} href={href} className="rounded-2xl border p-5">
@@ -113,7 +115,7 @@ export default function Dashboard() {
                     href={`/bookings/${b.id}`}
                     className="block border-b py-3"
                   >
-                    {b.reference} · {b.check_in_date} → {b.check_out_date} ·{" "}
+                    {b.is_test ? "[Test] " : ""}{b.reference} · {b.check_in_date} → {b.check_out_date} ·{" "}
                     {b.booking_status.replaceAll("_", " ")}
                   </Link>
                 ))

@@ -4,7 +4,7 @@
 
 The traveler sees **Booking confirmed as soon as payment is recorded successfully**. Hotel acknowledgement is a separate internal state. It does not delay customer confirmation. If the room cannot be fulfilled, Hoysii handles replacement or refund through operations.
 
-The implementation uses the existing API Worker, D1, Better Auth, email binding and admin app. No Premier Bank or Waafi gateway is connected. `payments.js` intentionally has no enabled provider or production mock. Unconfigured payment initiation returns `503 PAYMENT_PROVIDER_NOT_CONFIGURED`. There is no unsigned public payment-success callback.
+The implementation uses the existing API Worker, D1, Better Auth, email binding and admin app. No Premier Bank or Waafi gateway is connected. `payments.js` intentionally has no real enabled provider. The separate server-gated stakeholder simulator is documented in `STAKEHOLDER_TESTING.md`. Unconfigured payment initiation returns `503 PAYMENT_PROVIDER_NOT_CONFIGURED`. There is no unsigned public payment-success callback.
 
 ## Release steps — performed by the owner
 
@@ -81,16 +81,11 @@ Admin writes require the independent admin session and a configured admin/localh
 
 ## Local validation
 
-### Preview payment confirmation in the normal app
+### Stakeholder testing in the normal app
 
-Run `npm start` inside `apps/traveler` and use the normal Explore screen. Hotel data, room availability, quotes and sign-in use the existing API configured by `EXPO_PUBLIC_API_URL`. There is no separate test app, API server, database, account or environment flag.
+See `STAKEHOLDER_TESTING.md`. The same traveler app, API, D1, admin and partner portal now share server-saved test bookings. With `STAKEHOLDER_TESTING=true`, all signed-in travelers can simulate payment and follow the finished confirmation/Trips/receipt flow. The server calculates the amount and records a deterministic test transaction; client-supplied success or amount fields never settle a real booking. Test reservations and blocks use independent inventory pools. Test receipts, refunds, payouts and reviews retain their test identity; real financial totals and public ratings exclude them. Test reservation emails are suppressed.
 
-In development (`__DEV__`) and on web (including the published web build), select a hotel, dates, room and payment method, then press **Pay Securely**. The app opens the existing confirmation screen using the selected hotel and quote. The checkout displays a payment-preview notice and the confirmation reference begins with `PREVIEW-`. Both checkout and confirmation use the same `isPaymentPreviewEnabled` decision in `lib/payment-preview.js`.
-
-The mock happens before any booking or payment POST: it does not create an inventory hold, charge money, notify a hotel or send a receipt email. A single temporary JavaScript object supplies this screen and is cleared when leaving it; it is not persisted in storage or a database. The preview will not appear in Trips or admin. Normal authentication and profile actions still use the existing backend.
-
-Native release builds use the real booking/payment path and cannot create or open payment previews. Web release builds intentionally keep the mock enabled until real checkout is connected. Disable the web preview mode when implementing gateway checkout. The backend provider remains unconfigured until a real gateway adapter is connected. This preview checks the screens and navigation; it does not verify gateway integration or backend settlement. Refreshing a preview confirmation expires its in-memory data; it never fabricates a persisted booking. No migration is required. The owner must push/merge these changes for the published site and API to update.
-
+This replaces device-only preview checkout. Previous local mocks remain visible as historical mocks; they are not uploaded or promoted. Native and web both follow the API's mode instead of relying on development builds. When the owner changes the flag to `false`, simulated settlement is disabled; real gateway calls remain unavailable until provider adapters are integrated. No actual transfer or provider webhook is tested by this simulator.
 Traveler helper checks: `node --test test/*.test.js` inside `apps/traveler`.
 
 Run `npm test` and `npm run check` inside `services/api`; tests use in-memory SQLite with foreign keys, real migrations and transactional batches. They send no real emails and contact no payment provider. Admin checks are `npm run lint` and `npm run build:cloudflare`. Traveler bundles can be checked with `npx expo export --platform all --output-dir <temporary-folder>`.

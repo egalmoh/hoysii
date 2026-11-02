@@ -1,6 +1,7 @@
+import { stakeholderTesting } from './testing.js';
 import { createAdminAuth, createAuth, createPartnerAuth, partnerOrigins, travelerOrigins, sendAuthEmail } from './auth.js';
 import { all, db, first, run } from './db.js';
-import { ACTIVE_BOOKING_FILTER, addDays, citySearchTerms, roomAvailable, unavailableDates } from './availability.js';
+import { activeBookingFilter, addDays, citySearchTerms, roomAvailable, unavailableDates } from './availability.js';
 import { createBooking, policyFor, policyUpdate, travelerBooking, validRange, validatePolicy } from './booking-service.js';
 import { adminOperations, processJobs, travelerOperations } from './operations.js';
 
@@ -94,9 +95,9 @@ function validRoom(item) {
     && Number.isInteger(units) && units >= 1 && units <= 10000 && Number.isInteger(adults) && adults >= 1 && adults <= 20;
 }
 
-async function overlappingBookings(database, start, end) {
-  return all(database, `SELECT b.room_id, b.check_in_date, b.check_out_date, 1 AS units FROM bookings b WHERE b.check_in_date < ? AND b.check_out_date > ? AND ${ACTIVE_BOOKING_FILTER}
-    UNION ALL SELECT room_id,start_date AS check_in_date,end_date AS check_out_date,units FROM inventory_blocks WHERE start_date < ? AND end_date > ?`, end, start, end, start);
+async function overlappingBookings(database, start, end, test) {
+  return all(database, `SELECT b.room_id, b.check_in_date, b.check_out_date, 1 AS units FROM bookings b WHERE b.check_in_date < ? AND b.check_out_date > ? AND ${activeBookingFilter(test)}
+    UNION ALL SELECT room_id,start_date AS check_in_date,end_date AS check_out_date,units FROM inventory_blocks WHERE is_test=${test ? 1 : 0} AND start_date < ? AND end_date > ?`, end, start, end, start);
 }
 
 function stayFilter(url) {
@@ -181,6 +182,7 @@ async function adminSetupRoutes(request, env, url) {
 
 async function publicRoutes(request, env, url) {
   const database = db(env);
+  if (request.method === 'GET' && url.pathname === '/v1/config') return json({ stakeholder_testing: stakeholderTesting(env) });
   if (request.method === 'GET' && url.pathname === '/v1/hotels') {
     const stay = stayFilter(url);
     if (stay.error) return stay.error;
@@ -193,7 +195,7 @@ async function publicRoutes(request, env, url) {
       const adults = Number(url.searchParams.get('adults') || 1);
       if (!Number.isInteger(adults) || adults < 1 || adults > 20) return error('Guest count is invalid.');
       const rooms = await all(database, 'SELECT * FROM rooms WHERE capacity_adults >= ?', adults);
-      const bookings = await overlappingBookings(database, stay.dates.checkIn, stay.dates.checkOut);
+      const bookings = await overlappingBookings(database, stay.dates.checkIn, stay.dates.checkOut, stakeholderTesting(env));
       const availableRooms = rooms.filter((item) => roomAvailable(item, bookings, stay.dates.checkIn, stay.dates.checkOut));
       const availableHotels = new Set(availableRooms.map((item) => item.hotel_id));
       records = records.filter((item) => availableHotels.has(item.id)).map((item) => ({ ...item, starting_price_cents: Math.min(...availableRooms.filter((room) => room.hotel_id === item.id).map((room) => room.price_cents)) }));
@@ -215,7 +217,7 @@ async function publicRoutes(request, env, url) {
     if (stay.dates) {
       const adults = Number(url.searchParams.get('adults') || 1);
       if (!Number.isInteger(adults) || adults < 1 || adults > 20) return error('Guest count is invalid.');
-      const bookings = await overlappingBookings(database, stay.dates.checkIn, stay.dates.checkOut);
+      const bookings = await overlappingBookings(database, stay.dates.checkIn, stay.dates.checkOut, stakeholderTesting(env));
       rooms = rooms.filter((item) => item.capacity_adults >= adults && roomAvailable(item, bookings, stay.dates.checkIn, stay.dates.checkOut));
     }
     rooms = rooms.map(room);
@@ -236,7 +238,7 @@ async function publicRoutes(request, env, url) {
       : city
         ? await all(database, `SELECT r.* FROM rooms r JOIN hotels h ON h.id = r.hotel_id WHERE (${cityTerms.map(() => 'h.city LIKE ? COLLATE NOCASE').join(' OR ')}) AND r.capacity_adults >= ?`, ...cityTerms.map((term) => `%${term}%`), adults)
         : await all(database, 'SELECT * FROM rooms WHERE capacity_adults >= ?', adults);
-    const bookings = await overlappingBookings(database, from, addDays(to, 1));
+    const bookings = await overlappingBookings(database, from, addDays(to, 1), stakeholderTesting(env));
     return json({ unavailable_dates: unavailableDates(rooms, bookings, from, to) });
   }
 
@@ -246,7 +248,7 @@ async function publicRoutes(request, env, url) {
     if (stay.error || !stay.dates) return stay.error || error('Choose check-in and check-out dates.');
     const selected = await first(database, 'SELECT * FROM rooms WHERE id = ?', availabilityMatch[1]);
     if (!selected) return error('Room not found.', 404);
-    const bookings = await overlappingBookings(database, stay.dates.checkIn, stay.dates.checkOut);
+    const bookings = await overlappingBookings(database, stay.dates.checkIn, stay.dates.checkOut, stakeholderTesting(env));
     return json({ available: roomAvailable(selected, bookings, stay.dates.checkIn, stay.dates.checkOut) });
   }
 
@@ -278,7 +280,7 @@ async function publicRoutes(request, env, url) {
 }
 
 async function userRoutes(request, env, url) {
-  if (!['/v1/me', '/v1/me/reviews', '/v1/me/saved-hotels', '/v1/trips', '/v1/bookings'].includes(url.pathname) && !url.pathname.startsWith('/v1/me/saved-hotels/') && !url.pathname.startsWith('/v1/bookings/')) return null;
+  if (!['/v1/me', '/v1/me/reviews', '/v1/me/test-reviews', '/v1/me/saved-hotels', '/v1/trips', '/v1/bookings'].includes(url.pathname) && !url.pathname.startsWith('/v1/me/saved-hotels/') && !url.pathname.startsWith('/v1/bookings/')) return null;
   const auth = await requireUser(request, env);
   if (auth.response) return auth.response;
   const origin = request.headers.get('origin');
@@ -291,7 +293,7 @@ async function userRoutes(request, env, url) {
 
   if (request.method === 'GET' && url.pathname === '/v1/me') {
     const profile = await first(database, 'SELECT full_name, phone_number FROM profiles WHERE user_id = ?', auth.user.id);
-    return json({ user: auth.user, profile: profile || {} });
+    return json({ user: auth.user, profile: profile || {}, stakeholder_testing: stakeholderTesting(env) });
   }
   if (request.method === 'PATCH' && url.pathname === '/v1/me') {
     const body = await request.json();

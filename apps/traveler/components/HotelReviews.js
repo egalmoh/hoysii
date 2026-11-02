@@ -6,13 +6,18 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useAuth } from "../lib/auth";
 import { apiFetch } from "../lib/api";
 export default function HotelReviews({ hotelId }) {
+  const { isSignedIn, userId } = useAuth();
+  const [testReviews, setTestReviews] = useState([]);
   const [data, setData] = useState(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   useEffect(() => {
     let active = true;
+    setTestReviews([]);
+    if (isSignedIn) apiFetch(`/v1/me/test-reviews?hotel_id=${encodeURIComponent(hotelId)}`).then((rows) => { if (active) setTestReviews(rows); }).catch(() => {});
     apiFetch(`/v1/hotels/${encodeURIComponent(hotelId)}/reviews`)
       .then((result) => {
         if (active) setData(result);
@@ -23,7 +28,7 @@ export default function HotelReviews({ hotelId }) {
     return () => {
       active = false;
     };
-  }, [hotelId]);
+  }, [hotelId, isSignedIn, userId]);
   const more = async () => {
     if (busy) return;
     setBusy(true);
@@ -47,6 +52,10 @@ export default function HotelReviews({ hotelId }) {
   return (
     <View style={styles.section}>
       <Text style={styles.heading}>Guest reviews</Text>
+      {isSignedIn && testReviews.length > 0 && <View>
+        <Text style={styles.text}>Stakeholder test reviews · excluded from public ratings</Text>
+        {testReviews.map((review) => <View key={review.id} style={styles.review}><Text style={styles.author}>{review.author} · {review.rating}/5 · Test</Text><Text style={styles.text}>{review.comment}</Text></View>)}
+      </View>}
       {error ? (
         <TouchableOpacity onPress={more}>
           <Text style={styles.text}>Reviews unavailable. Tap to retry.</Text>

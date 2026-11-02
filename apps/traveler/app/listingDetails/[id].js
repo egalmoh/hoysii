@@ -137,6 +137,7 @@ export default function ListingScreen() {
           <Feather name="arrow-left" size={18} color="#111827" />
           <Text style={styles.backLabel}>Back</Text>
         </TouchableOpacity>
+        <SaveHotelButton hotelId={hotelId} style={{ position: 'relative', top: 0, right: 0 }} />
       </View>
   );
 
@@ -246,7 +247,6 @@ export default function ListingScreen() {
               <View style={styles.divider} />
             </View>
 
-            <SaveHotelButton hotelId={hotelId} />
             {/* What this hotel offers */}
             {offers.length > 0 && <View style={styles.offersSection}>
               <Text style={styles.offersTitle}>What this hotel offers?</Text>
@@ -358,6 +358,9 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   navigationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     position: 'absolute',
     top: 0,
     left: 0,

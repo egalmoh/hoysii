@@ -2,6 +2,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { ConditionalNavbar } from "@/components/conditional-navbar";
+import { StakeholderNotice } from "@/components/stakeholder-notice";
 import { AuthProvider } from "@/components/auth-provider";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -25,6 +26,7 @@ export default function RootLayout({ children }) {
         >
           <AuthProvider>
             <ConditionalNavbar />
+            <StakeholderNotice />
             {children}
           </AuthProvider>
         </ThemeProvider>

@@ -94,6 +94,7 @@ export default function Portal() {
         </div>
       </header>
       <main>
+        {state.stakeholder_testing && <p className="notice">Stakeholder testing is enabled. Test reservations and inventory blocks are separate from live inventory. Property and room edits update shared hotel information.</p>}
         {error && (
           <p role="alert" className="error">
             {error}
@@ -136,7 +137,7 @@ export default function Portal() {
         {hotelId ? (
           <div key={`${hotelId}:${tab}`}>
             {tab === "Reservations" ? (
-              <Reservations hotelId={hotelId} />
+              <Reservations hotelId={hotelId} testing={state.stakeholder_testing} />
             ) : tab === "Rooms & availability" ? (
               <Rooms hotelId={hotelId} />
             ) : tab === "Property" ? (
@@ -207,7 +208,7 @@ function Payouts({ hotelId }) {
                     {r.period_start} → {r.period_end}
                   </td>
                   <td>${(r.amount_cents / 100).toFixed(2)}</td>
-                  <td>{r.status}</td>
+                  <td>{r.status}{Boolean(r.is_test) && " · Test payout"}</td>
                   <td>{r.reference || "—"}</td>
                 </tr>
               ))}
