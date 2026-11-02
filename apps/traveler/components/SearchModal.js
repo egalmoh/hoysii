@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Image, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Image, Pressable, StyleSheet, ScrollView, Linking } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -9,7 +9,6 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Feather } from '@expo/vector-icons';
 import { Calendar } from 'react-native-calendars';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useWebLayout } from '../lib/use-web-layout';
 
 const POPULAR_PLACES = [
@@ -17,24 +16,27 @@ const POPULAR_PLACES = [
     id: 1,
     name: 'Moqadisho',
     region: 'Banaadir',
-    image: 'https://images.unsplash.com/photo-1596005554384-d293674c91d7?w=200&h=200&fit=crop',
+    image: require('../assets/destinations/mogadishu.jpg'),
+    landmark: 'Liido Beach',
   },
   {
     id: 2,
     name: 'Hargeysa',
     region: 'Togdheer',
-    image: 'https://images.unsplash.com/photo-1523805009345-7448845a9e53?w=200&h=200&fit=crop',
+    image: require('../assets/destinations/hargeisa.jpg'),
+    landmark: 'Hargeisa War Memorial',
   },
   {
     id: 4,
     name: 'Garowe',
     region: 'Nugaal',
-    image: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=200&h=200&fit=crop',
+    image: require('../assets/destinations/garowe.jpg'),
+    landmark: 'Beerta Barako gardens',
   },
-  { id: 5, name: 'Bosaso', region: 'Bari' },
-  { id: 6, name: 'Galkacyo', region: 'Mudug' },
-  { id: 7, name: 'Berbera', region: 'Sahil' },
-  { id: 8, name: 'Borama', region: 'Awdal' },
+  { id: 5, name: 'Bosaso', region: 'Bari', image: require('../assets/destinations/bosaso.jpg'), landmark: 'Bosaso beach at sunset' },
+  { id: 6, name: 'Galkacyo', region: 'Mudug', image: require('../assets/destinations/galkacyo.jpg'), landmark: 'Awale Stadium' },
+  { id: 7, name: 'Berbera', region: 'Sahil', image: require('../assets/destinations/berbera.jpg'), landmark: 'Berbera beach' },
+  { id: 8, name: 'Borama', region: 'Awdal', image: require('../assets/destinations/borama.jpg'), landmark: 'Borama book monument' },
 ];
 
 export default function SearchModal({
@@ -217,59 +219,61 @@ export default function SearchModal({
 
   if (!visible) return null;
 
-  // Location Step Content
-  const renderLocationContent = () => (
-    <View>
+  // The heading and search stay outside the scrolling step content.
+  const renderHeader = () => (
+    <View style={[styles.modalHeader, { paddingBottom: currentStep === 'dates' ? 21 : currentStep === 'people' ? 40 : 0 }]}>
       <Text style={styles.title}>
-        Where do you want to visit?
+        {currentStep === 'location' ? 'Where do you want to visit?' : currentStep === 'dates' ? 'When do you want to visit?' : 'Who is with you?'}
       </Text>
+      {currentStep === 'location' && (
+        <>
+          <View style={styles.searchInputContainer}>
+            <Feather name="search" size={20} color="#6B7280" style={{ marginRight: 12 }} />
+            <TextInput
+              value={searchText}
+              onChangeText={(text) => { setSearchText(text); setSelectedPlace(null); }}
+              placeholder="Garowe, Puntland"
+              placeholderTextColor="#6B7280"
+              style={styles.searchInput}
+            />
+          </View>
+          <Text style={styles.sectionLabel}>Most visited places</Text>
+        </>
+      )}
+    </View>
+  );
 
-      <View style={styles.searchInputContainer}>
-        <Feather name="search" size={20} color="#6B7280" style={{ marginRight: 12 }} />
-        <TextInput
-          value={searchText}
-          onChangeText={(text) => { setSearchText(text); setSelectedPlace(null); }}
-          placeholder="Garowe, Puntland"
-          placeholderTextColor="#6B7280"
-          style={styles.searchInput}
-        />
-      </View>
-
-      <Text style={styles.sectionLabel}>
-        Most visited places
-      </Text>
-
-      <View style={{ marginBottom: 16 }}>
-        {POPULAR_PLACES.map((place) => (
-          <TouchableOpacity
-            key={place.id}
-            onPress={() => handleSelectPlace(place)}
-            style={[
-              styles.placeItem,
-              selectedPlace?.id === place.id && styles.placeItemSelected
-            ]}
-          >
-            {place.image ? <Image
-              source={{ uri: place.image }}
-              style={styles.placeImage}
-              resizeMode="cover"
-            /> : <View style={[styles.placeImage, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#EDF5FE' }]}><Feather name="map-pin" size={24} color="#489CFC" /></View>}
-            <Text style={styles.placeName}>
-              {place.name}, {place.region}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+  const renderLocationContent = () => (
+    <View style={{ marginBottom: 16 }}>
+      {POPULAR_PLACES.map((place) => (
+        <TouchableOpacity
+          key={place.id}
+          onPress={() => handleSelectPlace(place)}
+          style={[
+            styles.placeItem,
+            selectedPlace?.id === place.id && styles.placeItemSelected
+          ]}
+        >
+          {place.image ? <Image
+            source={place.image}
+            accessibilityLabel={place.landmark}
+            style={styles.placeImage}
+            resizeMode="cover"
+          /> : <View style={[styles.placeImage, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#EDF5FE' }]}><Feather name="map-pin" size={24} color="#489CFC" /></View>}
+          <Text style={styles.placeName}>
+            {place.name}, {place.region}
+          </Text>
+        </TouchableOpacity>
+      ))}
+      <TouchableOpacity accessibilityRole="link" onPress={() => Linking.openURL('https://hoysii.com/destination-photo-credits.html')} style={{ alignSelf: 'flex-end', paddingVertical: 4 }}>
+        <Text style={{ color: '#6B7280', fontSize: 11, textDecorationLine: 'underline' }}>Photo credits</Text>
+      </TouchableOpacity>
     </View>
   );
 
   // Dates Step Content
   const renderDatesContent = () => (
     <View style={{ gap: 21 }}>
-      <Text style={styles.title}>
-        When do you want to visit?
-      </Text>
-
       <View style={styles.calendarContainer}>
         <Calendar
           onDayPress={handleDayPress}
@@ -310,11 +314,7 @@ export default function SearchModal({
 
   // People Step Content
   const renderPeopleContent = () => (
-    <View style={{ gap: 40, marginBottom: 16 }}>
-      <Text style={styles.title}>
-        Who is with you?
-      </Text>
-
+    <View style={{ marginBottom: 16 }}>
       <View style={{ gap: 24 }}>
         {/* Adults Row */}
         <View>
@@ -393,35 +393,30 @@ export default function SearchModal({
       <Animated.View style={[styles.modal, animatedStyle, wide && { left: (width - 520) / 2, right: undefined, width: 520 }, {
         top: headerHeight + 8,
         maxHeight: Math.max(0, containerHeight - headerHeight - 20),
+        paddingHorizontal: currentStep === 'people' ? 24 : 17,
       }]} pointerEvents="auto">
+        {renderHeader()}
         <ScrollView
-          style={{ flexShrink: 1 }}
+          key={currentStep}
+          testID="search-modal-content"
+          style={styles.modalBody}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={[
-          styles.modalInner,
-          { paddingHorizontal: currentStep === 'people' ? 24 : 17 }
-        ]}>
-          <View style={{ 
-            width: '100%',
-            gap: currentStep === 'dates' ? 24 : currentStep === 'people' ? 10 : 20
-          }}>
-            {currentStep === 'location' && renderLocationContent()}
-            {currentStep === 'dates' && renderDatesContent()}
-            {currentStep === 'people' && renderPeopleContent()}
-
-            {/* Action Buttons */}
-            <View style={styles.actionButtons}>
-              <TouchableOpacity onPress={handleClose} style={styles.cancelButton}>
-                <Text style={styles.cancelText}>Cancel</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity onPress={handleNext} disabled={currentStep === 'dates' && !!selectedDates.checkIn && !selectedDates.checkOut} style={[styles.nextButton, currentStep === 'dates' && !!selectedDates.checkIn && !selectedDates.checkOut && { opacity: 0.5 }]}>
-                <Text style={styles.nextText}>{getButtonText()}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          contentContainerStyle={styles.modalBodyContent}>
+          {currentStep === 'location' && renderLocationContent()}
+          {currentStep === 'dates' && renderDatesContent()}
+          {currentStep === 'people' && renderPeopleContent()}
         </ScrollView>
+        {/* Fixed actions remain reachable while the step content scrolls. */}
+        <View style={[styles.actionButtons, { paddingTop: currentStep === 'dates' ? 24 : currentStep === 'people' ? 10 : 20 }]}>
+          <TouchableOpacity onPress={handleClose} style={styles.cancelButton}>
+            <Text style={styles.cancelText}>Cancel</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={handleNext} disabled={currentStep === 'dates' && !!selectedDates.checkIn && !selectedDates.checkOut} style={[styles.nextButton, currentStep === 'dates' && !!selectedDates.checkIn && !selectedDates.checkOut && { opacity: 0.5 }]}>
+            <Text style={styles.nextText}>{getButtonText()}</Text>
+          </TouchableOpacity>
+        </View>
       </Animated.View>
     </View>
   );
@@ -460,11 +455,17 @@ const styles = StyleSheet.create({
     shadowRadius: 30,
     elevation: 5,
     zIndex: 100,
+    paddingVertical: 15,
   },
-  modalInner: {
-    padding: 15,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
+  modalHeader: {
+    flexShrink: 0,
+  },
+  modalBody: {
+    flexShrink: 1,
+    minHeight: 0,
+  },
+  modalBodyContent: {
+    width: '100%',
   },
   title: {
     fontSize: 20,
@@ -570,6 +571,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   actionButtons: {
+    flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

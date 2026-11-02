@@ -12,6 +12,7 @@ import HotelReviews from '../../components/HotelReviews';
 import AvailableRoomCard from '../../components/AvailableRoomCard';
 import { hotelOffers, isHotelVerified } from '../../lib/hotel-display';
 import { useWebLayout } from '../../lib/use-web-layout';
+import HotelDetailsDesktop from '../../components/HotelDetailsDesktop';
 
 export default function ListingScreen() {
   const { id } = useLocalSearchParams();
@@ -126,6 +127,11 @@ export default function ListingScreen() {
     image: room.images?.[0] || '',
     amenities: (room.amenities || []).join(', '),
   }));
+
+  // The wider web page has its own presentation; native/mobile keep this screen.
+  if (wide) {
+    return <HotelDetailsDesktop hotel={hotel} rooms={displayRooms} searchParams={{ checkIn, checkOut, adults, children }} />;
+  }
 
   const navigationHeader = (
       <View pointerEvents="box-none" style={[styles.navigationHeader, {

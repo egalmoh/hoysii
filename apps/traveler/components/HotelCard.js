@@ -75,7 +75,7 @@ export default function HotelCard({ hotel, index, cardWidth = CARD_WIDTH, cardHe
         </ScrollView>
 
         <SaveHotelButton hotelId={hotel.id} />
-        {compact && isHotelVerified(hotel) && <View style={styles.compactVerified}>
+        {isHotelVerified(hotel) && <View pointerEvents="none" style={styles.compactVerified}>
           <MaterialCommunityIcons name="shield-check" size={14} color="#489CFC" />
           <Text style={styles.compactVerifiedText}>Verified</Text>
         </View>}
@@ -137,20 +137,10 @@ export default function HotelCard({ hotel, index, cardWidth = CARD_WIDTH, cardHe
             <Text style={styles.priceLabel}>per night</Text>
           </View>
         </View>
-
-        {/* Right Side - Verified Badge */}
-        {!compact && isHotelVerified(hotel) && (
-          <View style={styles.verifiedBadgeContainer}>
-            <View style={styles.verifiedBadge}>
-              <MaterialCommunityIcons name="shield-check" size={18} color="#489CFC" />
-              <Text style={styles.verifiedText}>Verified</Text>
-            </View>
-          </View>
-            )}
-          </TouchableOpacity>
-        </Animated.View>
-      );
-    }
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
 
 
 
@@ -254,25 +244,6 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontFamily: 'Inter_400Regular',
     lineHeight: 16,
-  },
-  verifiedBadgeContainer: {
-    justifyContent: 'flex-start',
-  },
-  verifiedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E4E9E8',
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    gap: 4,
-  },
-  verifiedText: {
-    fontSize: 11,
-    fontWeight: 'bold',
-    textTransform: 'uppercase',
-    color: '#6B7280',
-    fontFamily: 'Inter_700Bold',
   },
   compactName: { fontSize: 15, lineHeight: 21, fontFamily: 'Inter_500Medium', fontWeight: '500' },
   compactVerified: { position: 'absolute', top: 16, left: 12, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.95)' },

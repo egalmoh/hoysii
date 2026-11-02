@@ -24,6 +24,10 @@ export default function PopularStayCard({ hotel, index, cardWidth, onPress }) {
           /> : <View style={{ height: imageHeight, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E5E7EB' }}><Feather name="home" size={24} color="#6B7280" /></View>}
           </TouchableOpacity>
           <SaveHotelButton hotelId={hotel.id} style={{ top: 8, right: 8 }} />
+          {isHotelVerified(hotel) && <View pointerEvents="none" style={styles.verifiedBadge}>
+            <MaterialCommunityIcons name="shield-check" size={14} color="#489CFC" />
+            <Text style={styles.verifiedText}>Verified</Text>
+          </View>}
         </View>
 
         {/* Hotel Info */}
@@ -36,13 +40,6 @@ export default function PopularStayCard({ hotel, index, cardWidth, onPress }) {
               <Text style={styles.priceLabel}>per night</Text>
             </View>
           </View>
-
-          {/* Right Side - Verified Badge */}
-          {isHotelVerified(hotel) && (
-            <View style={styles.verifiedBadge}>
-              <MaterialCommunityIcons name="shield-check" size={18} color="#489CFC" />
-            </View>
-          )}
         </TouchableOpacity>
       </Animated.View>
   );
@@ -89,11 +86,16 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
   },
   verifiedBadge: {
-    width: 25,
-    height: 25,
-    borderRadius: 12.5,
-    backgroundColor: '#E4E9E8',
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    flexDirection: 'row',
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.95)',
     alignItems: 'center',
-    justifyContent: 'center',
   },
+  verifiedText: { fontFamily: 'Inter_500Medium', fontSize: 11, color: '#374151' },
 });
