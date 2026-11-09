@@ -14,13 +14,21 @@ function stayDate(value) {
 
 export default function HotelDetailsDesktop({ hotel, rooms, searchParams }) {
   const router = useRouter();
-  const { width, height } = useWindowDimensions();
+  const { width } = useWindowDimensions();
   const twoColumns = width >= 1024;
   const pageWidth = Math.min(1120, width - 64);
   const photos = [...new Set((hotel.images || []).filter(Boolean))];
-  const secondaryPhotos = photos.slice(1, 5);
+  const photoEntries = photos.map((uri, index) => ({ uri, index }));
+  const secondaryPhotos = photoEntries.slice(1, 5);
+  const previewRows = secondaryPhotos.length > 2
+    ? [secondaryPhotos.slice(0, 2), secondaryPhotos.slice(2)]
+    : secondaryPhotos.map(photo => [photo]);
+  const allPhotoRows = photoEntries.reduce((rows, photo, index) => {
+    if (index === 0 || index % 2 === 1) rows.push([photo]);
+    else rows[rows.length - 1].push(photo);
+    return rows;
+  }, []);
   const galleryHeight = Math.min(420, Math.round(pageWidth * 0.4));
-  const secondaryWidth = (pageWidth - 8) / 2;
   const offers = hotelOffers(hotel);
   const address = Array.isArray(hotel.address) ? hotel.address.filter(Boolean).join(', ') : hotel.address || '';
   const prices = rooms.map(room => Number(room.price)).filter(price => Number.isFinite(price) && price >= 0);
@@ -28,9 +36,8 @@ export default function HotelDetailsDesktop({ hotel, rooms, searchParams }) {
   const guestCount = (Number(searchParams.adults) || 1) + (Number(searchParams.children) || 0);
   const [photoIndex, setPhotoIndex] = useState(null);
   const scrollRef = useRef(null);
-  const bodyY = useRef(0);
-  const mainY = useRef(0);
-  const roomsY = useRef(0);
+  const photoScrollRef = useRef(null);
+  const photoRowOffsets = useRef(new Map());
 
   useEffect(() => {
     setPhotoIndex(null);
@@ -41,14 +48,15 @@ export default function HotelDetailsDesktop({ hotel, rooms, searchParams }) {
     if (photoIndex === null) return;
     const onKeyDown = event => {
       if (event.key === 'Escape') setPhotoIndex(null);
-      if (event.key === 'ArrowLeft') setPhotoIndex(index => Math.max(0, index - 1));
-      if (event.key === 'ArrowRight') setPhotoIndex(index => Math.min(photos.length - 1, index + 1));
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [photoIndex, photos.length]);
+  }, [photoIndex]);
 
-  const showRooms = () => scrollRef.current?.scrollTo({ y: bodyY.current + mainY.current + roomsY.current - 24, animated: true });
+  const scrollToPhoto = () => photoScrollRef.current?.scrollTo({
+    y: Math.max(0, (photoRowOffsets.current.get(photoIndex) || 0) - 24),
+    animated: false,
+  });
   const photoTile = (photo, index, style) => (
     <TouchableOpacity key={`${index}-${photo}`} accessibilityRole="button" accessibilityLabel={`View hotel photo ${index + 1} of ${photos.length}`}
       onPress={() => setPhotoIndex(index)} activeOpacity={0.9} style={[styles.photoTile, style]}>
@@ -75,11 +83,9 @@ export default function HotelDetailsDesktop({ hotel, rooms, searchParams }) {
             {photos.length === 0 ? <View style={styles.photoPlaceholder}><Feather name="home" size={36} color="#6B7280" /><Text style={styles.muted}>Hotel photo coming soon</Text></View> : <>
               {photoTile(photos[0], 0, { flex: secondaryPhotos.length ? 1 : undefined, width: secondaryPhotos.length ? undefined : '100%' })}
               {secondaryPhotos.length > 0 && <View style={[styles.secondaryPhotos, { flex: photos.length === 2 ? 0.65 : 1 }]}>
-                {secondaryPhotos.map((photo, index) => photoTile(photo, index + 1, {
-                  width: secondaryPhotos.length >= 3 && !(secondaryPhotos.length === 3 && index === 2) ? (secondaryWidth - 8) / 2 : '100%',
-                  flexGrow: 1,
-                  height: secondaryPhotos.length === 1 ? '100%' : (galleryHeight - 8) / 2,
-                }))}
+                {previewRows.map(row => <View key={row[0].index} style={styles.previewPhotoRow}>
+                  {row.map(photo => photoTile(photo.uri, photo.index, { flex: 1 }))}
+                </View>)}
               </View>}
               <TouchableOpacity accessibilityRole="button" accessibilityLabel="Show all hotel photos" onPress={() => setPhotoIndex(0)} style={styles.allPhotos}>
                 <Feather name="grid" size={16} color="#111827" /><Text style={styles.actionText}>Show all photos{photos.length > 1 ? ` (${photos.length})` : ''}</Text>
@@ -87,8 +93,8 @@ export default function HotelDetailsDesktop({ hotel, rooms, searchParams }) {
             </>}
           </View>
 
-          <View onLayout={event => { bodyY.current = event.nativeEvent.layout.y; }} style={[styles.body, twoColumns && styles.bodyColumns]}>
-            <View onLayout={event => { mainY.current = event.nativeEvent.layout.y; }} style={styles.mainColumn}>
+          <View style={[styles.body, twoColumns && styles.bodyColumns]}>
+            <View style={styles.mainColumn}>
               <View style={styles.introduction}>
                 <Text style={styles.sectionTitle}>Hotel{hotel.city ? ` in ${hotel.city}` : ''}</Text>
                 {isHotelVerified(hotel) && <View style={styles.verifiedBadge}><MaterialCommunityIcons name="shield-check" size={22} color="#489CFC" /><Text style={styles.verifiedText}>VERIFIED BY HOYSII TEAM</Text></View>}
@@ -102,7 +108,7 @@ export default function HotelDetailsDesktop({ hotel, rooms, searchParams }) {
                   </View>)}
                 </View>
               </View>}
-              <View testID="hotel-available-rooms" onLayout={event => { roomsY.current = event.nativeEvent.layout.y; }} style={styles.section}>
+              <View testID="hotel-available-rooms" style={styles.section}>
                 <Text style={styles.sectionTitle}>Availability</Text>
                 <Text style={styles.muted}>Choose a room for your stay</Text>
                 <View style={styles.rooms}>
@@ -124,7 +130,6 @@ export default function HotelDetailsDesktop({ hotel, rooms, searchParams }) {
                   </View>
                   <View style={[styles.stayField, styles.guestField]}><Text style={styles.fieldLabel}>GUESTS</Text><Text style={styles.fieldValue}>{guestCount} guest{guestCount === 1 ? '' : 's'}</Text></View>
                 </View>
-                <TouchableOpacity accessibilityRole="button" onPress={showRooms} style={styles.chooseRoom}><Text style={styles.chooseRoomText}>Choose a room</Text></TouchableOpacity>
                 <Text style={styles.summaryNote}>Select your room to continue to checkout.</Text>
               </View>
             </View>
@@ -132,15 +137,26 @@ export default function HotelDetailsDesktop({ hotel, rooms, searchParams }) {
         </View>
       </ScrollView>
 
-      <Modal visible={photoIndex !== null} animationType="fade" onRequestClose={() => setPhotoIndex(null)}>
+      <Modal visible={photoIndex !== null} animationType="fade" onShow={scrollToPhoto} onRequestClose={() => setPhotoIndex(null)}>
         <View accessibilityViewIsModal style={styles.viewer}>
           <View style={styles.viewerHeader}>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close hotel photos" onPress={() => setPhotoIndex(null)} style={styles.viewerClose}><Feather name="x" size={23} color="#FFFFFF" /><Text style={styles.viewerText}>Close</Text></TouchableOpacity>
-            <Text style={styles.viewerText}>{photoIndex === null ? '' : `${photoIndex + 1} / ${photos.length}`}</Text>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close hotel photos" onPress={() => setPhotoIndex(null)} style={styles.viewerClose}><Feather name="x" size={23} color="#111827" /><Text style={styles.viewerText}>Close</Text></TouchableOpacity>
+            <Text accessibilityRole="header" numberOfLines={1} style={styles.viewerTitle}>{hotel.name}</Text>
+            <Text style={styles.viewerText}>{photos.length} {photos.length === 1 ? 'photo' : 'photos'}</Text>
           </View>
-          {photoIndex !== null && <Image source={{ uri: photos[photoIndex] }} accessibilityLabel={`${hotel.name} · photo ${photoIndex + 1}`} resizeMode="contain" style={{ width: '100%', height: Math.max(0, height - 160) }} />}
-          {photoIndex > 0 && <TouchableOpacity accessibilityRole="button" accessibilityLabel="Previous hotel photo" onPress={() => setPhotoIndex(index => index - 1)} style={[styles.viewerArrow, { left: 24 }]}><Feather name="chevron-left" size={24} color="#111827" /></TouchableOpacity>}
-          {photoIndex !== null && photoIndex < photos.length - 1 && <TouchableOpacity accessibilityRole="button" accessibilityLabel="Next hotel photo" onPress={() => setPhotoIndex(index => index + 1)} style={[styles.viewerArrow, { right: 24 }]}><Feather name="chevron-right" size={24} color="#111827" /></TouchableOpacity>}
+          <ScrollView ref={photoScrollRef} testID="hotel-all-photos" style={styles.scroll} contentContainerStyle={styles.allPhotoContent}>
+            <View style={[styles.allPhotoGrid, { width: pageWidth }]}>
+              {allPhotoRows.map(row => <View key={row[0].index} style={styles.allPhotoRow}
+                onLayout={event => {
+                  row.forEach(photo => photoRowOffsets.current.set(photo.index, event.nativeEvent.layout.y));
+                  if (row.some(photo => photo.index === photoIndex)) scrollToPhoto();
+                }}>
+                {row.map(photo => <View key={photo.index} testID={`hotel-all-photo-${photo.index + 1}`} style={styles.allPhotoTile}>
+                  <Image source={{ uri: photo.uri }} accessibilityLabel={`${hotel.name} · photo ${photo.index + 1}`} resizeMode="contain" style={styles.photo} />
+                </View>)}
+              </View>)}
+            </View>
+          </ScrollView>
         </View>
       </Modal>
     </View>
@@ -164,7 +180,8 @@ const styles = StyleSheet.create({
   photoTile: { minWidth: 0, overflow: 'hidden' },
   photo: { width: '100%', height: '100%' },
   photoPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  secondaryPhotos: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, minWidth: 0 },
+  secondaryPhotos: { gap: 8, minWidth: 0 },
+  previewPhotoRow: { flex: 1, flexDirection: 'row', gap: 8, minHeight: 0 },
   allPhotos: { position: 'absolute', bottom: 20, right: 20, flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: '#111827', borderRadius: 8, backgroundColor: '#FFFFFF', paddingVertical: 10, paddingHorizontal: 15 },
   actionText: { fontFamily: 'Inter_500Medium', fontSize: 14, color: '#111827' },
   body: { marginTop: 36, gap: 32 },
@@ -196,12 +213,14 @@ const styles = StyleSheet.create({
   guestField: { borderTopWidth: 1, borderTopColor: '#B5BAC2' },
   fieldLabel: { fontFamily: 'Inter_700Bold', fontSize: 10, color: '#111827' },
   fieldValue: { fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 20, color: '#4B5563' },
-  chooseRoom: { alignItems: 'center', backgroundColor: '#489CFC', paddingVertical: 15, borderRadius: 10 },
-  chooseRoomText: { fontFamily: 'Inter_700Bold', fontSize: 16, color: '#FFFFFF' },
   summaryNote: { fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 18, color: '#6B7280', textAlign: 'center' },
-  viewer: { flex: 1, backgroundColor: '#111827', justifyContent: 'center', alignItems: 'center' },
-  viewerHeader: { position: 'absolute', zIndex: 1, left: 32, right: 32, top: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  viewer: { flex: 1, backgroundColor: '#FFFFFF' },
+  viewerHeader: { flexShrink: 0, paddingHorizontal: 32, paddingVertical: 16, gap: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
   viewerClose: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 },
-  viewerText: { fontFamily: 'Inter_500Medium', fontSize: 15, color: '#FFFFFF' },
-  viewerArrow: { position: 'absolute', top: '50%', width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF' },
+  viewerTitle: { flex: 1, fontFamily: 'Inter_700Bold', fontSize: 20, color: '#111827', textAlign: 'center' },
+  viewerText: { fontFamily: 'Inter_500Medium', fontSize: 15, color: '#111827' },
+  allPhotoContent: { alignItems: 'center', paddingVertical: 24 },
+  allPhotoGrid: { gap: 12 },
+  allPhotoRow: { flexDirection: 'row', gap: 12 },
+  allPhotoTile: { flex: 1, minWidth: 0, aspectRatio: 1.5, borderRadius: 12, overflow: 'hidden', backgroundColor: '#F3F4F6' },
 });
