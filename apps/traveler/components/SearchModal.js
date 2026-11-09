@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Image, Pressable, StyleSheet, ScrollView, Linking } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Image, Pressable, StyleSheet, ScrollView } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -265,9 +265,6 @@ export default function SearchModal({
           </Text>
         </TouchableOpacity>
       ))}
-      <TouchableOpacity accessibilityRole="link" onPress={() => Linking.openURL('https://hoysii.com/destination-photo-credits.html')} style={{ alignSelf: 'flex-end', paddingVertical: 4 }}>
-        <Text style={{ color: '#6B7280', fontSize: 11, textDecorationLine: 'underline' }}>Photo credits</Text>
-      </TouchableOpacity>
     </View>
   );
 
