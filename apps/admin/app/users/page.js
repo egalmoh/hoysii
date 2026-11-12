@@ -89,16 +89,16 @@ export default function UsersPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 p-4 text-slate-800 dark:bg-gray-900 dark:text-slate-100 sm:p-8">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+    <main className="ui-page">
+      <div className="space-y-6 min-w-0">
+        <div className="ui-page-header">
           <div>
-            <h1 className="text-3xl font-bold">Users</h1>
+            <h1>Users</h1>
             <p className="mt-1 text-sm text-slate-500">Manage travelers. Admin accounts are separate.</p>
           </div>
           <div className="flex items-center gap-3">
             <span className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm dark:border-gray-700 dark:bg-gray-800">Total: {users.length}</span>
-            <button type="button" onClick={() => { setError(""); setForm({ ...emptyForm }); }} className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 font-medium text-white hover:bg-brand-700"><UserPlus size={16} /> Create user</button>
+            <button type="button" onClick={() => { setError(""); setForm({ ...emptyForm }); }} className="ui-button"><UserPlus size={16} /> Create user</button>
           </div>
         </div>
 
@@ -106,7 +106,7 @@ export default function UsersPage() {
         {notice && <p role="status" className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{notice}</p>}
 
         {loading ? <div className="flex justify-center rounded-xl bg-white p-12 dark:bg-gray-800"><Loader2 className="animate-spin" /></div> :
-          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+          <div className="ui-table-wrap">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-slate-200 bg-slate-50 dark:border-gray-700 dark:bg-gray-800">
                 <tr><th className="px-5 py-4">Traveler</th><th className="px-5 py-4">Contact</th><th className="px-5 py-4">Status</th><th className="px-5 py-4">Added</th><th className="px-5 py-4 text-right">Actions</th></tr>

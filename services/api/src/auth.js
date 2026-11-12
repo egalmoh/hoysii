@@ -10,7 +10,11 @@ function trustedOrigins(env) {
 }
 
 export function travelerOrigins(env) {
-  return trustedOrigins(env).filter((origin) => !origin.startsWith('https://admin.') && !partnerOrigins(env).includes(origin));
+  return trustedOrigins(env).filter((origin) => !adminOrigins(env).includes(origin) && !partnerOrigins(env).includes(origin));
+}
+
+export function adminOrigins(env) {
+  return trustedOrigins(env).filter((origin) => origin === env.ADMIN_PANEL_URL || origin.startsWith('https://admin.'));
 }
 
 export async function appleClientSecret(clientId, teamId, keyId, privateKeyPem) {
@@ -119,7 +123,7 @@ export function createAdminAuth(env) {
     baseURL: env.BETTER_AUTH_URL,
     basePath: '/api/admin-auth',
     secret: env.ADMIN_AUTH_SECRET,
-    trustedOrigins: trustedOrigins(env).filter((origin) => origin.startsWith('http://localhost:') || origin.startsWith('https://admin.')),
+    trustedOrigins: adminOrigins(env),
     database: db(env),
     user: { modelName: 'admin_user' },
     session: { modelName: 'admin_session' },

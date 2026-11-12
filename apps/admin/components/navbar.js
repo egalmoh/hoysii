@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, CalendarDays, Users, LogOut, Menu, X } from "lucide-react";
+import { LayoutDashboard, Building2, Handshake, MessageSquare, Wallet, ShieldAlert, CalendarDays, Users, LogOut, Menu, X } from "lucide-react";
 import { ModeToggle } from "@/components/mode-toggle";
 import { authClient } from "@/lib/auth-client";
 
@@ -18,11 +18,11 @@ export function Navbar() {
 
   const navItems = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
-    { name: "Hotels", href: "/hotels", icon: LayoutDashboard },
-    { name: "Partners", href: "/partners", icon: Users },
-    { name: "Reviews", href: "/reviews", icon: Users },
-    { name: "Payouts", href: "/payouts", icon: CalendarDays },
-    { name: "Operations", href: "/operations", icon: CalendarDays },
+    { name: "Hotels", href: "/hotels", icon: Building2 },
+    { name: "Partners", href: "/partners", icon: Handshake },
+    { name: "Reviews", href: "/reviews", icon: MessageSquare },
+    { name: "Payouts", href: "/payouts", icon: Wallet },
+    { name: "Operations", href: "/operations", icon: ShieldAlert },
     { name: "Bookings", href: "/bookings", icon: CalendarDays },
     { name: "Users", href: "/users", icon: Users },
   ];
@@ -53,6 +53,7 @@ export function Navbar() {
               <Link
                 key={item.href}
                 href={item.href}
+                aria-current={isActive(item.href) ? "page" : undefined}
                 className={`flex items-center gap-2 px-2 py-2 rounded-full text-sm font-medium transition-all ${
                   isActive(item.href)
                     ? "bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400"
@@ -85,6 +86,8 @@ export function Navbar() {
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="xl:hidden p-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors"
             aria-label="Toggle menu"
+            aria-expanded={mobileMenuOpen}
+            aria-controls="admin-mobile-navigation"
           >
             {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
@@ -93,7 +96,7 @@ export function Navbar() {
 
       {/* Mobile Menu */}
       {mobileMenuOpen && (
-        <div className="xl:hidden border-t border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-950">
+        <div id="admin-mobile-navigation" className="xl:hidden border-t border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-950">
           <div className="px-4 py-3 space-y-1">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -101,6 +104,7 @@ export function Navbar() {
                 <Link
                   key={item.href}
                   href={item.href}
+                  aria-current={isActive(item.href) ? "page" : undefined}
                   onClick={() => setMobileMenuOpen(false)}
                   className={`flex items-center gap-3 px-4 py-3 rounded-lg text-base font-medium transition-all ${
                     isActive(item.href)

@@ -13,7 +13,16 @@ The basic hotel partner portal is implemented under `apps/partners/`. Its produc
 
 ## Local development
 
-Run commands inside the relevant project directory:
+For the admin and hotel partner websites, start the real local API and both websites together from this repository root:
+
+```sh
+node scripts/dev-local.mjs --setup
+node scripts/dev-local.mjs
+```
+
+The setup command applies existing migrations and imports stakeholder hotels/photos into local Wrangler storage only. Run it on first use and after new migrations. Admin runs at `http://localhost:3000`, partners at `http://localhost:3001`, and the API at `http://localhost:8787`. Create separate local accounts using the setup links and codes in Wrangler's captured local email files. See [local testing instructions](docs/LOCAL_DEVELOPMENT.md) for account setup, dependencies and troubleshooting.
+
+To run individual projects instead, use their own directories:
 
 ```sh
 cd apps/traveler && npm install && npm start

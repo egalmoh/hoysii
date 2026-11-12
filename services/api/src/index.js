@@ -1,6 +1,6 @@
 import { stakeholderTesting, hotelVisible, hotelRetired } from './testing.js';
 import { recommendationOrder } from './recommendations.js';
-import { createAdminAuth, createAuth, createPartnerAuth, partnerOrigins, travelerOrigins, sendAuthEmail } from './auth.js';
+import { createAdminAuth, createAuth, createPartnerAuth, adminOrigins, partnerOrigins, travelerOrigins, sendAuthEmail } from './auth.js';
 import { all, db, first, run } from './db.js';
 import { activeBookingFilter, addDays, citySearchTerms, roomAvailable, unavailableDates } from './availability.js';
 import { createBooking, policyFor, policyUpdate, travelerBooking, validRange, validatePolicy } from './booking-service.js';
@@ -63,7 +63,7 @@ function cors(request, env) {
   const trusted = pathname.startsWith('/v1/partner/') || pathname.startsWith('/api/partner-auth/')
     ? partnerOrigins(env)
     : pathname.startsWith('/v1/admin/') || pathname.startsWith('/api/admin-auth/')
-      ? configured.filter((s) => s.startsWith('https://admin.') || s.startsWith('http://localhost:'))
+      ? adminOrigins(env)
       : pathname.startsWith('/v1/me') || pathname.startsWith('/v1/bookings') || pathname === '/v1/trips' || pathname.startsWith('/api/auth/')
         ? travelerOrigins(env) : configured;
   return {
@@ -387,8 +387,8 @@ async function adminRoutes(request, env, url) {
 
   if (request.method === 'GET' && url.pathname === '/v1/admin/session') return json({ user: auth.user });
   const origin = request.headers.get('origin');
-  const adminOrigins = (env.TRUSTED_ORIGINS || '').split(',').map((value) => value.trim()).filter((value) => value.startsWith('https://admin.') || value.startsWith('http://localhost:'));
-  if ((origin && !adminOrigins.includes(origin)) || (!origin && !['GET','HEAD'].includes(request.method))) return error('A trusted admin origin is required.', 403);
+  const allowedAdminOrigins = adminOrigins(env);
+  if ((origin && !allowedAdminOrigins.includes(origin)) || (!origin && !['GET','HEAD'].includes(request.method))) return error('A trusted admin origin is required.', 403);
 
   const feature = await adminFeatures(request, env, url, auth.user);
   if (feature) return feature;

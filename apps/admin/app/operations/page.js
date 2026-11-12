@@ -20,8 +20,8 @@ export default function OperationsPage() {
     apiFetch('/v1/admin/operations').then((data) => { if (active) setData(data) }).catch((error) => { if (active) setError(error.message) })
     return () => { active = false }
   }, [])
-  return <main className="mx-auto max-w-7xl space-y-6 p-6 text-slate-900 dark:text-white">
-    <div className="flex items-center justify-between"><div><h1 className="text-3xl font-bold">Operations</h1><p className="text-sm text-slate-500">Today’s stays and reservations that need attention. Times are in Somalia.</p></div><button disabled={loading} className={buttonClass} onClick={load}>{loading ? 'Loading…' : 'Refresh'}</button></div>
+  return <main className="ui-page space-y-6">
+    <div className="ui-page-header"><div><h1>Operations</h1><p className="text-sm text-slate-500">Today’s stays and reservations that need attention. Times are in Somalia.</p></div><button disabled={loading} className={buttonClass} onClick={load}>{loading ? 'Loading…' : 'Refresh'}</button></div>
     {error && <p role="alert" className="text-red-600">{error}</p>}
     {data && <div className="grid gap-6 md:grid-cols-2">
       {[

@@ -12,11 +12,9 @@ The `hoysii` D1 database and `hoysii-hotel-media` R2 bucket are provisioned. The
 
 ## Local development
 
-1. Run `npm install` in this folder.
-2. Copy `.dev.vars.example` to `.dev.vars` and set different random values for `BETTER_AUTH_SECRET`, `ADMIN_AUTH_SECRET` and `PARTNER_AUTH_SECRET` (at least 32 characters each). Set `ADMIN_EMAIL` to the email that will own the admin account and `ADMIN_PANEL_URL` to the local admin origin. Keep `.dev.vars` private.
-3. Run `npx wrangler d1 migrations apply hoysii --local`.
-4. Run `npm run dev`. Use `http://localhost:8787` as the local API origin.
-5. Set `EXPO_PUBLIC_API_URL=http://localhost:8787` in `apps/traveler/.env`, and `NEXT_PUBLIC_API_URL=http://localhost:8787` in `apps/admin/.env.local`. Keep `localhost` consistent across the admin and API so browser cookies work. On a physical phone, use a reachable HTTPS API URL rather than `localhost`.
+Use the [local testing guide](../../docs/LOCAL_DEVELOPMENT.md). From the repository root, `node scripts/dev-local.mjs --setup` prepares local D1/R2, then `node scripts/dev-local.mjs` starts the API, admin and partners together with matching origins and independent auth secrets. The ignored `.env.development.local` supplies local settings without changing `.dev.vars` or production configuration. Wrangler captures local email instead of delivering it to real inboxes.
+
+For API-only development, run `npm run dev` in this folder; it uses the same launcher with `--api-only`. Run setup first. Both management websites default to `http://localhost:8787` in development. The traveler app needs its own `EXPO_PUBLIC_API_URL` and restart to use the local API. On a physical phone, `localhost` refers to the phone, not your development computer.
 
 ## Production setup
 
