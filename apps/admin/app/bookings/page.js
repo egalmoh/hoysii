@@ -39,24 +39,24 @@ export default function BookingsPage() {
   });
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8 font-sans text-slate-800 dark:text-slate-100">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="ui-page">
+      <div className="space-y-6 min-w-0">
 
-        <div className="flex items-center justify-between">
+        <div className="ui-page-header">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Bookings</h1>
+            <h1>Bookings</h1>
             <p className="text-slate-500 dark:text-slate-400 mt-1">View and manage all reservations</p>
           </div>
         </div>
 
         <Link href="/operations" className="inline-block text-brand-600">View operations and exceptions →</Link>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <input aria-label="Search bookings" placeholder="Reference, guest, or hotel" value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} className="rounded-lg border p-2.5 dark:bg-gray-900" />
-          <input aria-label="Stay date" type="date" value={filters.date} onChange={(event) => setFilters({ ...filters, date: event.target.value })} className="rounded-lg border p-2.5 dark:bg-gray-900" />
-          <select aria-label="Payment status" value={filters.payment} onChange={(event) => setFilters({ ...filters, payment: event.target.value })} className="rounded-lg border p-2.5 dark:bg-gray-900"><option value="">All payments</option>{['pending','paid','partially_refunded','refunded'].map((status) => <option key={status} value={status}>{status}</option>)}</select>
-          <select aria-label="Hotel acknowledgement" value={filters.acknowledgement} onChange={(event) => setFilters({ ...filters, acknowledgement: event.target.value })} className="rounded-lg border p-2.5 dark:bg-gray-900"><option value="">All hotel responses</option>{['not_sent','pending','acknowledged','declined'].map((status) => <option key={status} value={status}>{status}</option>)}</select>
+          <input aria-label="Search bookings" placeholder="Reference, guest, or hotel" value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} className="ui-input" />
+          <input aria-label="Stay date" type="date" value={filters.date} onChange={(event) => setFilters({ ...filters, date: event.target.value })} className="ui-input" />
+          <select aria-label="Payment status" value={filters.payment} onChange={(event) => setFilters({ ...filters, payment: event.target.value })} className="ui-input"><option value="">All payments</option>{['pending','paid','partially_refunded','refunded'].map((status) => <option key={status} value={status}>{status}</option>)}</select>
+          <select aria-label="Hotel acknowledgement" value={filters.acknowledgement} onChange={(event) => setFilters({ ...filters, acknowledgement: event.target.value })} className="ui-input"><option value="">All hotel responses</option>{['not_sent','pending','acknowledged','declined'].map((status) => <option key={status} value={status}>{status}</option>)}</select>
         </div>
-        <select aria-label="Booking type" value={filters.mode} onChange={(event) => setFilters({ ...filters, mode: event.target.value })} className="rounded-lg border p-2.5 dark:bg-gray-900"><option value="">Real and test bookings</option><option value="test">Stakeholder tests</option><option value="real">Real bookings</option></select>
+        <select aria-label="Booking type" value={filters.mode} onChange={(event) => setFilters({ ...filters, mode: event.target.value })} className="ui-input"><option value="">Real and test bookings</option><option value="test">Stakeholder tests</option><option value="real">Real bookings</option></select>
         {error && <p role="alert" className="text-red-600">{error}</p>}
         {loading ? (
           <div className="bg-white dark:bg-gray-800 rounded-xl p-12 flex justify-center border border-slate-200 dark:border-gray-700">
@@ -69,7 +69,7 @@ export default function BookingsPage() {
             <p className="text-slate-500 dark:text-slate-400">New bookings will appear here.</p>
           </div>
         ) : (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-slate-200 dark:border-gray-700 overflow-hidden">
+          <div className="ui-table-wrap">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-50 dark:bg-gray-800/50 border-b border-slate-200 dark:border-gray-700">

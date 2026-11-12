@@ -57,13 +57,13 @@ export default function Dashboard() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8 font-sans text-slate-800 dark:text-slate-100">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="ui-page">
+      <div className="space-y-6 min-w-0">
 
         {/* Header */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 rounded-2xl border border-brand-100 bg-gradient-to-br from-brand-50 via-white to-brand-100/50 p-6 dark:border-gray-800 dark:from-gray-900 dark:via-gray-900 dark:to-brand-900/20">
+        <div className="ui-page-header">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Hotels</h1>
+            <h1>Hotels</h1>
             <p className="text-slate-500 dark:text-slate-400 mt-1">Manage your properties and bookings</p>
           </div>
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
@@ -74,12 +74,12 @@ export default function Dashboard() {
                 placeholder="Search hotels..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 pr-4 py-2.5 rounded-lg border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-brand-500 outline-none w-full sm:w-56"
+                className="ui-input pl-9 mt-0 w-full sm:w-56"
               />
             </div>
             <Link
               href="/create"
-              className="flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-5 py-2.5 rounded-lg font-semibold shadow transition-all whitespace-nowrap"
+              className="ui-button"
             >
               <Plus className="w-5 h-5" />
               Add New Hotel
@@ -107,7 +107,7 @@ export default function Dashboard() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredHotels.map((hotel) => (
-              <div key={hotel.id} className="group bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-slate-200 dark:border-gray-800 overflow-hidden hover:shadow-md transition-shadow">
+              <div key={hotel.id} className="group ui-hotel-card">
                 {/* Image Preview - First image or placeholder */}
                 <div className="h-48 bg-slate-100 dark:bg-gray-950 relative overflow-hidden">
                   {hotel.images && hotel.images.length > 0 ? (

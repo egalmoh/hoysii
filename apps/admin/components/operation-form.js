@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 
-export const inputClass = 'w-full rounded-lg border border-slate-300 bg-transparent p-2.5 text-sm dark:border-gray-600'
-export const buttonClass = 'rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50'
-export const cardClass = 'rounded-xl border border-slate-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900'
+export { inputClass, buttonClass } from './management-shell'
+import { inputClass, buttonClass } from './management-shell'
+export const cardClass = 'ui-panel'
 
 export function OperationForm({ title, description, fields, submitLabel = 'Save', onSubmit, onSaved, destructive = false }) {
   const [busy, setBusy] = useState(false)

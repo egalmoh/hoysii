@@ -74,13 +74,7 @@ export default function Reservations({ hotelId, testing = false }) {
     <>
       <section className="panel">
         <div className="row">
-          <div>
-            <h2>Reservations</h2>
-            <p>
-              Acknowledge each new confirmed booking within 30 minutes. The
-              traveler already sees it as confirmed.
-            </p>
-          </div>
+          <h2>Reservation inbox</h2>
           <button
             className="secondary"
             disabled={busy}
@@ -89,7 +83,8 @@ export default function Reservations({ hotelId, testing = false }) {
             Refresh
           </button>
         </div>
-        <label>
+        <p className="muted">Acknowledge each new confirmed booking within 30 minutes. The traveler already sees it as confirmed.</p>
+        <label className="reservation-filter">
           Show
           <select value={filter} onChange={(e) => setFilter(e.target.value)}>
             <option value="upcoming">Upcoming and in-house</option>
@@ -114,20 +109,20 @@ export default function Reservations({ hotelId, testing = false }) {
         <section className="panel">No matching reservations.</section>
       ) : (
         visible.map((r) => (
-          <article key={r.id} className="panel">
-            <div className="row">
-              <h2>{r.is_test ? "[Stakeholder test] " : ""}{r.reference}</h2>
-              <span className="badge">
+          <article key={r.id} className="panel reservation-card">
+            <div className="row reservation-header">
+              <div className="actions"><h2>{r.reference}</h2>{Boolean(r.is_test) && <span className="ui-badge ui-badge-warning">Stakeholder test</span>}</div>
+              <span className={`ui-badge ${["confirmed", "checked_in", "completed"].includes(r.booking_status) ? "ui-badge-success" : ""}`}>
                 {r.booking_status.replaceAll("_", " ")}
               </span>
             </div>
-            <h3>
-              {r.guest_name} · {r.room_name}
-            </h3>
-            <p>
-              {r.check_in_date} → {r.check_out_date} · {r.guests} guests
-            </p>
-            <p>Hotel response: {r.hotel_ack_status.replaceAll("_", " ")}</p>
+            <div className="reservation-body">
+            <dl className="reservation-details">
+              <div><dt>Guest</dt><dd>{r.guest_name}</dd></div>
+              <div><dt>Room type</dt><dd>{r.room_name}</dd></div>
+              <div><dt>Stay · {r.guests} guests</dt><dd>{r.check_in_date} → {r.check_out_date}</dd></div>
+            </dl>
+            <p className="muted">Hotel response: <span className={`ui-badge ${r.hotel_ack_status === "declined" ? "ui-badge-danger" : r.hotel_ack_status === "pending" ? "ui-badge-warning" : ""}`}>{r.hotel_ack_status.replaceAll("_", " ")}</span></p>
             {r.hotel_ack_status === "pending" && r.hotel_ack_due_at && (
               <p className="notice">
                 Acknowledge by{" "}
@@ -163,6 +158,7 @@ export default function Reservations({ hotelId, testing = false }) {
                 }
               />
             )}
+            </div>
           </article>
         ))
       )}
@@ -171,7 +167,7 @@ export default function Reservations({ hotelId, testing = false }) {
 }
 function ActionForm({ bookingId, action, onSubmit, busy, statuses }) {
   return (
-    <form onSubmit={onSubmit} className="grid" style={{ marginTop: 16 }}>
+    <form onSubmit={onSubmit} className="grid reservation-action" style={{ marginTop: 16 }}>
       <input type="hidden" name="booking_id" value={bookingId} />
       <input type="hidden" name="action" value={action} />
       <label>

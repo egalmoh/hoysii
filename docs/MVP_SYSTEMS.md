@@ -12,6 +12,8 @@ The owner explicitly approved the three product screenshots and their annotation
 
 The existing admin Verified checkbox and badges remain. No inspections workflow or separate Hoysii Verified subsystem is added. Property edits in the partner portal cannot set verification, rating or cancellation terms. Support stays on WhatsApp.
 
+Admin and partner pages share the Hoysii management styles and bundled Inter fonts in `packages/management-ui/`: blue primary controls, soft page headers, bordered white cards, status badges, accessible focus states and responsive spacing. Admin retains its top navigation and light/dark themes. Partners use a desktop sidebar and a collapsible mobile menu, with reservation cards and tables that scroll inside their containers. These are presentation changes; API permissions, booking actions and recorded-money behavior are unchanged.
+
 The owner-requested 15-hotel stakeholder catalog is prepared separately in [HOTEL_CATALOG.md](HOTEL_CATALOG.md), with 30 simulated room types and checked source photos. Its properties are test-only, unverified, hidden outside server testing mode, and require the owner's schema/media/data import after the matching Git deployments. The traveler desktop header uses the supplied branded wordmark.
 
 ## Accounts and hotel assignments
@@ -81,6 +83,6 @@ This is an online PWA: search, availability, authentication and bookings still u
 5. Native app changes require the normal mobile release/update process separately. Existing installed apps do not update when Cloudflare deploys.
 6. After Git deployments, sign into admin, assign a partner email to its hotel, accept the invitation in the partner portal and verify its code. Check rates/blocks against traveler search; test acknowledgement/check-in/completion on an appropriate real recorded booking. Stakeholder checkout now creates a shared test booking for these steps; a real money transfer remains unimplemented.
 
-For local development: run `npm ci` then `npm run dev` in `apps/partners` (port 3001). Set `NEXT_PUBLIC_API_URL` in an ignored `.env.local` for a local API if needed. Set `PARTNER_LOCAL_ORIGINS=http://localhost:3001` only in the local API's ignored `.dev.vars`; never broaden production origins for convenience. Existing automated API tests use in-memory SQLite and mock email acceptance, with no production writes or external email deliveries.
+For local development, follow [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md). From the repository root, run `node scripts/dev-local.mjs --setup`, then `node scripts/dev-local.mjs` to start the real local API and both management websites with matching origins, independent secrets and local D1/R2. Wrangler captures local email. Production origins are not broadened. Automated API tests also cover localhost admin setup, invited partner verification, separate sessions and denied access to another hotel, using in-memory SQLite with no external email deliveries.
 
 “Live authentication testing” means exercising the deployed website and native app with real email delivery, codes, sign-in/out, password reset and restored sessions; provider OAuth needs actual Google/Apple configuration. Local tests/builds do not guarantee inbox delivery or prove Apple sign-in is configured. Production browser/inbox checks remain an owner release step.

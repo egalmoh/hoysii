@@ -1,11 +1,17 @@
-import { Inter } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { ConditionalNavbar } from "@/components/conditional-navbar";
 import { StakeholderNotice } from "@/components/stakeholder-notice";
 import { AuthProvider } from "@/components/auth-provider";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+const inter = localFont({
+  src: [
+    { path: "../../../packages/management-ui/fonts/Inter_400Regular.ttf", weight: "400" },
+    { path: "../../../packages/management-ui/fonts/Inter_700Bold.ttf", weight: "700" },
+  ],
+  variable: "--font-inter",
+});
 
 export const metadata = {
   title: "Hoysii Admin",
@@ -14,7 +20,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${inter.className} ${inter.variable} antialiased`}
       >

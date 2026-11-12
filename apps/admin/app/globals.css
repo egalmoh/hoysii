@@ -1,10 +1,11 @@
 @import "tailwindcss";
+@import "../../../packages/management-ui/styles.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: var(--ui-background);
+  --foreground: var(--ui-text);
 }
 
 @theme inline {
@@ -31,8 +32,8 @@
 } */
 
 .dark {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  --background: var(--ui-background);
+  --foreground: var(--ui-text);
 }
 
 body {

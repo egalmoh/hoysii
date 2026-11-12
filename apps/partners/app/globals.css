@@ -1,225 +1,145 @@
 @import "tailwindcss";
-:root {
-  font-family: var(--font-inter), sans-serif;
-  color: #111827;
-  background: #f8fafc;
-  font-synthesis: none;
+@import "../../../packages/management-ui/styles.css";
+
+@layer base {
+  :root { font-family: var(--font-inter), Arial, sans-serif; font-synthesis: none; }
+  * { box-sizing: border-box; }
+  body { font-family: var(--font-inter), Arial, sans-serif; margin: 0; }
+  a { color: var(--ui-primary); }
+  button, input, select, textarea { font: inherit; }
+  button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; border: 1px solid transparent; border-radius: 10px; min-height: 44px; padding: 10px 18px; background: var(--ui-primary); color: #fff; font-size: 14px; font-weight: 700; transition: background 150ms; }
+  button:hover:not(:disabled) { background: var(--ui-primary-hover); }
+  button:disabled { opacity: 0.55; cursor: not-allowed; }
+  input, textarea, select { display: block; width: 100%; min-width: 0; min-height: 44px; margin-top: 6px; padding: 11px 12px; border: 1px solid var(--ui-border); border-radius: 10px; background: var(--ui-surface); color: var(--ui-text); font-size: 14px; line-height: 1.5; }
+  :is(input, select, textarea):focus { border-color: #489cfc; box-shadow: 0 0 0 3px rgb(72 156 252 / 0.12); }
+  input:disabled, input:read-only { background: var(--ui-soft); }
+  input[type="hidden"] { display: none; }
+  input[type="file"] { padding: 10px; border-style: dashed; }
+  input[type="file"]::file-selector-button { background: var(--ui-tint); border: 0; border-radius: 6px; color: var(--ui-primary); padding: 6px 10px; margin-right: 10px; cursor: pointer; }
+  textarea { min-height: 110px; resize: vertical; }
+  label { display: block; min-width: 0; font-size: 13px; font-weight: 500; color: var(--ui-muted); }
+  label > span { display: block; margin-top: 6px; font-size: 12px; }
+  h1, h2, h3 { color: var(--ui-text); font-weight: 700; letter-spacing: -0.025em; }
+  h1 { font-size: 30px; line-height: 1.25; margin: 0 0 12px; }
+  h2 { font-size: 19px; line-height: 1.4; margin: 0 0 10px; }
+  h3 { font-size: 16px; line-height: 1.5; margin: 0 0 10px; }
+  p { font-size: 14px; line-height: 1.7; margin: 8px 0; overflow-wrap: anywhere; }
 }
-* {
-  box-sizing: border-box;
-}
-body {
-  font-family: var(--font-inter), sans-serif;
-  margin: 0;
-}
-a {
-  color: #216fc4;
-}
-button,
-input,
-select,
-textarea {
-  font: inherit;
-}
-button {
-  cursor: pointer;
-  border: 0;
-  border-radius: 12px;
-  padding: 12px 18px;
-  background: #216fc4;
-  color: white;
-  font-weight: 700;
-}
-button.secondary {
-  background: #e5edf5;
-  color: #172b4d;
-}
-button.danger {
-  background: #fff0f0;
-  color: #b42318;
-}
-button:disabled {
-  opacity: 0.5;
-  cursor: wait;
-}
-input,
-textarea,
-select {
-  display: block;
-  width: 100%;
-  min-width: 0;
-  margin-top: 6px;
-  padding: 12px;
-  border: 1px solid #cbd5e1;
-  border-radius: 10px;
-  background: white;
-  color: #111827;
-}
-textarea {
-  min-height: 96px;
-  resize: vertical;
-}
-label {
-  display: block;
-  font-size: 14px;
-  color: #475569;
-}
-h1 {
-  font-size: 28px;
-  line-height: 1.2;
-  margin: 0 0 12px;
-}
-h2 {
-  font-size: 21px;
-  margin: 0 0 12px;
-}
-h3 {
-  font-size: 17px;
-  margin: 0 0 10px;
-}
-p {
-  line-height: 1.6;
-  margin: 8px 0;
-  overflow-wrap: anywhere;
-}
-header {
-  background: #fff;
-  border-bottom: 1px solid #e2e8f0;
-  padding: 16px 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-}
-main {
-  max-width: 1180px;
-  margin: auto;
-  padding: 24px;
-}
-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 20px 0;
-}
-nav button {
-  background: #e5edf5;
-  color: #172b4d;
-}
-nav button[aria-current="page"] {
-  background: #216fc4;
-  color: white;
-}
-.panel {
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 18px;
-  padding: 24px;
-  margin: 16px 0;
-  min-width: 0;
-}
-.row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-.actions {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
-  gap: 16px;
-}
-.auth {
-  max-width: 520px;
-  margin: 32px auto;
-}
-.stack {
-  display: grid;
-  gap: 16px;
-}
-.muted {
-  color: #64748b;
-}
-.notice {
-  background: #eff7ff;
-  border: 1px solid #89c2fe;
-  border-radius: 12px;
-  padding: 14px;
-  margin: 16px 0;
-}
-.error {
-  background: #fff1f2;
-  border: 1px solid #fda4af;
-  color: #9f1239;
-  border-radius: 12px;
-  padding: 14px;
-  margin: 16px 0;
-}
-.badge {
-  display: inline-block;
-  padding: 6px 10px;
-  border-radius: 20px;
-  background: #eff7ff;
-  color: #216fc4;
-  font-size: 13px;
-}
-.photos {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.photos img {
-  width: 120px;
-  height: 90px;
-  object-fit: cover;
-  border-radius: 10px;
-}
-.table {
-  overflow: auto;
-}
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-td,
-th {
-  text-align: left;
-  padding: 10px;
-  border-bottom: 1px solid #e2e8f0;
-  white-space: nowrap;
-}
-.calendar {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(95px, 1fr));
-  gap: 8px;
-}
-.day {
-  padding: 10px;
-  border-radius: 10px;
-  background: #eff7ff;
-}
-.day.closed {
-  background: #f1f5f9;
-  color: #64748b;
-}
-@media (max-width: 600px) {
-  main {
-    padding: 16px;
+
+@layer components {
+  button.secondary { background: var(--ui-surface); color: var(--ui-text); border-color: var(--ui-border); }
+  button.secondary:hover:not(:disabled) { background: var(--ui-soft); }
+  button.danger { background: #fff1f2; color: #b42338; }
+  button.danger:hover:not(:disabled) { background: #ffe4e6; }
+  main { max-width: 1280px; margin: auto; padding: 24px; }
+  .panel { min-width: 0; background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: 16px; padding: 24px; margin: 20px 0; box-shadow: var(--ui-shadow); }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 18px; align-items: end; }
+  .grid > button { align-self: end; }
+  .stack { display: grid; gap: 20px; }
+  .stack > button { justify-self: start; }
+  .auth { max-width: 520px; margin: 48px auto; }
+  .auth > img { display: block; margin: 0 auto 24px; width: 200px; height: auto; }
+  .auth .panel { padding: 32px; }
+  .auth h1 { font-size: 26px; }
+  .auth .stack { margin-top: 24px; }
+  .auth .stack > button { width: 100%; }
+  .auth .actions button { font-size: 12px; padding-inline: 12px; }
+  .muted { color: var(--ui-muted); }
+  .notice { background: var(--ui-tint); border: 1px solid var(--ui-tint-border); color: #1c4d85; border-radius: 12px; padding: 14px 16px; margin: 16px 0; font-size: 13px; }
+  .testing-notice { background: #fffbeb; border-color: #fde9b0; color: #92400e; }
+  .error { background: #fff1f2; border: 1px solid #fecdd3; color: #b42338; border-radius: 12px; padding: 14px 16px; margin: 16px 0; }
+  .badge { display: inline-flex; padding: 5px 10px; border-radius: 999px; background: var(--ui-tint); color: var(--ui-primary); font-size: 12px; font-weight: 700; }
+  .photos { display: flex; gap: 14px; flex-wrap: wrap; }
+  .photos > div { border: 1px solid var(--ui-border); border-radius: 12px; padding: 6px; display: grid; gap: 6px; }
+  .photos img { width: 120px; height: 90px; object-fit: cover; border-radius: 8px; }
+  .photos button { min-height: 32px; padding: 6px 10px; font-size: 12px; }
+  .table-scroll { display: block; max-width: 100%; overflow-x: auto; border: 1px solid var(--ui-border); border-radius: 12px; margin-top: 20px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { color: #475569; background: var(--ui-background); font-size: 12px; font-weight: 700; }
+  td, th { text-align: left; padding: 16px; border-bottom: 1px solid var(--ui-border); white-space: nowrap; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: #f8fbff; }
+  td .ui-badge + .ui-badge { margin-left: 6px; }
+  .calendar { display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: 10px; }
+  .day { padding: 12px; border: 1px solid var(--ui-tint-border); border-radius: 12px; background: var(--ui-tint); color: #1c4d85; }
+  .day small { font-size: 11px; }
+  .day p { font-size: 13px; font-weight: 700; margin-bottom: 0; }
+  .day.closed { background: var(--ui-soft); color: var(--ui-muted); border-color: var(--ui-border); }
+  .portal-layout { display: grid; grid-template-columns: 256px minmax(0, 1fr); min-height: 100dvh; }
+  .portal-sidebar { display: flex; flex-direction: column; gap: 24px; position: sticky; top: 0; height: 100dvh; overflow-y: auto; padding: 24px 20px 20px; border-right: 1px solid var(--ui-border); background: var(--ui-surface); }
+  .portal-brand { display: grid; gap: 12px; justify-items: start; padding-inline: 10px; }
+  .portal-brand img { width: 150px; height: auto; }
+  .portal-brand .ui-badge { padding: 4px 9px; font-size: 10px; }
+  .portal-menu-toggle { display: none; }
+  .portal-navigation { display: grid; gap: 7px; margin: 0; }
+  .portal-navigation .ui-eyebrow { padding: 0 12px; margin-bottom: 4px; }
+  .portal-navigation button { justify-content: flex-start; text-align: left; gap: 12px; min-height: 48px; padding: 12px; background: transparent; color: #64748b; font-size: 13px; font-weight: 500; }
+  .portal-navigation button:hover { background: var(--ui-background); color: var(--ui-text); }
+  .portal-navigation button[aria-current="page"] { background: var(--ui-tint); color: var(--ui-primary); font-weight: 700; }
+  .portal-nav-chevron { margin-left: auto; }
+  .portal-sidebar-bottom { margin-top: auto; display: grid; gap: 18px; }
+  .portal-help { padding: 18px; border-radius: 14px; background: linear-gradient(140deg, var(--ui-tint), #f8fbff); border: 1px solid var(--ui-tint-border); }
+  .portal-help > svg { color: var(--ui-primary); margin-bottom: 10px; }
+  .portal-help strong { display: block; font-size: 13px; }
+  .portal-help p { font-size: 12px; color: var(--ui-muted); line-height: 1.7; }
+  .portal-help .ui-link { font-size: 12px; }
+  .portal-account { display: flex; align-items: center; gap: 10px; padding-inline: 8px; min-width: 0; }
+  .portal-account > div:last-child { min-width: 0; }
+  .portal-account strong { display: block; font-size: 12px; overflow-wrap: anywhere; }
+  .portal-account p { margin: 2px 0 0; font-size: 11px; color: var(--ui-muted); }
+  .portal-avatar { width: 36px; height: 36px; display: grid; place-items: center; flex-shrink: 0; border-radius: 50%; background: var(--ui-tint); color: var(--ui-primary); font-size: 13px; font-weight: 700; }
+  .portal-signout { width: 100%; font-size: 12px; }
+  .portal-main { width: 100%; min-width: 0; max-width: 1440px; margin-inline: auto; padding: 28px 36px 48px; }
+  .portal-topbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px; margin-bottom: 28px; }
+  .portal-topbar p { margin: 4px 0 0; color: var(--ui-text); font-size: 13px; }
+  .portal-hotel-picker { width: min(100%, 320px); }
+  .portal-main > .ui-page-header { margin-bottom: 20px; }
+  .portal-main > .ui-page-header p { max-width: 600px; }
+  .portal-mobile-help { display: none; }
+  .reservation-card { padding: 0; overflow: hidden; }
+  .reservation-header { padding: 20px 24px; border-bottom: 1px solid var(--ui-border); background: #fbfdff; }
+  .reservation-header h2 { margin: 0; font-size: 16px; }
+  .reservation-body { padding: 24px; }
+  .reservation-details { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 20px; }
+  .reservation-details dt { font-size: 11px; color: var(--ui-muted); margin-bottom: 5px; }
+  .reservation-details dd { margin: 0; font-size: 14px; font-weight: 700; overflow-wrap: anywhere; }
+  .reservation-action { padding-top: 20px; border-top: 1px solid var(--ui-border); }
+  .reservation-filter { max-width: 320px; margin-top: 20px; }
+  @media (max-width: 1023px) {
+    .portal-layout { display: block; }
+    .portal-sidebar { height: auto; padding: 16px 24px; border-right: 0; border-bottom: 1px solid var(--ui-border); z-index: 20; gap: 20px; max-height: 100dvh; }
+    .portal-brand-row { display: flex; justify-content: space-between; align-items: center; }
+    .portal-brand { display: flex; align-items: center; gap: 14px; padding: 0; }
+    .portal-brand img { width: 120px; }
+    .portal-menu-toggle { display: inline-flex; padding: 10px; }
+    .portal-sidebar:not(.is-open) :is(.portal-navigation, .portal-sidebar-bottom) { display: none; }
+    .portal-help { display: none; }
+    .portal-sidebar-bottom { grid-template-columns: minmax(0, 1fr) auto; align-items: center; padding-top: 12px; border-top: 1px solid var(--ui-border); }
+    .portal-signout { width: auto; }
+    .portal-main { padding: 24px; }
+    .portal-mobile-help { display: block; margin-top: 24px; }
   }
-  .panel {
-    padding: 16px;
-  }
-  header {
-    padding: 14px 16px;
-  }
-  h1 {
-    font-size: 24px;
+  @media (max-width: 639px) {
+    main { padding: 16px; }
+    .panel { padding: 18px; }
+    .auth { margin: 24px auto; }
+    .auth .panel { padding: 24px; }
+    .portal-sidebar { padding: 12px 16px; }
+    .portal-brand { gap: 8px; }
+    .portal-brand img { width: 108px; }
+    .portal-main { padding: 20px 16px; }
+    .portal-topbar { margin-bottom: 20px; }
+    .portal-topbar > div { display: none; }
+    .portal-hotel-picker { width: 100%; }
+    .portal-main > .ui-page-header { padding: 20px; }
+    .portal-main > .ui-page-header > .ui-badge { display: none; }
+    .reservation-card { padding: 0; }
+    .reservation-header, .reservation-body { padding: 18px; }
+    .reservation-details { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .reservation-details > div:last-child { grid-column: 1 / -1; }
+    .grid { grid-template-columns: minmax(0, 1fr); }
+    .grid > button { width: 100%; }
   }
 }

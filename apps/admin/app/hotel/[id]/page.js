@@ -182,17 +182,17 @@ export default function HotelEditor({ params }) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8 font-sans text-slate-800 dark:text-slate-100">
-       <div className="max-w-5xl mx-auto space-y-8">
+    <div className="ui-page">
+       <div className="space-y-6 min-w-0">
 
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="ui-page-header">
           <div className="flex items-center gap-4">
             <Link href="/hotels" className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-gray-800 transition-colors">
               <ArrowLeft className="w-6 h-6" />
             </Link>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Edit Property</h1>
+              <h1>Edit Property</h1>
               <p className="text-slate-500 dark:text-slate-400 mt-1">{hotel.name}</p>
             </div>
           </div>

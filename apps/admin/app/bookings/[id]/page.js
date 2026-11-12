@@ -39,7 +39,7 @@ export default function BookingDetails({ params }) {
   }, [id])
   const act = (action, body) => apiFetch(`/v1/admin/bookings/${encodeURIComponent(id)}/${action}`, { method: 'POST', body: JSON.stringify(body) })
   const refundTransitions = { requested: ['approved'], approved: ['processing','completed','failed'], processing: ['completed','failed'], failed: ['approved'] }
-  return <main className="mx-auto max-w-7xl space-y-6 p-6 text-slate-900 dark:text-white">
+  return <main className="ui-page space-y-6">
     <Link href="/bookings" className="text-brand-600">← Bookings</Link>{error && <p role="alert" className="text-red-600">{error}</p>}
     {!booking ? <p>{error ? 'Booking unavailable.' : 'Loading booking…'}</p> : <>
       {booking.is_test && <p className="rounded-xl bg-amber-50 p-4 text-amber-900">Stakeholder test booking. Payment and refunds are simulated; no money moves and no hotel email is sent.</p>}
